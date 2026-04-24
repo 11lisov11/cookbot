@@ -32,7 +32,11 @@ The test suite also covers:
 - diagnostics and simulator fault injection;
 - no-hardware acceptance report;
 - calibration wizard flow;
+- optional local API token protection;
+- export bundle endpoint;
 - OpenAI-compatible client parsing through a mocked HTTP response.
+
+GitHub Actions runs the same software checks plus Arduino Mega compile through `.github/workflows/check.yml`.
 
 UNO Q service templates:
 

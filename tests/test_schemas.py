@@ -7,3 +7,4 @@ def test_schema_endpoint_exposes_core_contracts(client):
     assert "AIPlan" in body
     assert "HardwareReadinessResponse" in body
     assert "AcceptanceReport" in body
+    assert "ExportBundle" in body

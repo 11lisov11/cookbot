@@ -41,6 +41,8 @@ def main() -> None:
     wait_for_backend()
     health = request("/health")
     assert health["app"] == "CookBot"
+    settings = request("/settings")
+    assert settings["app"] == "CookBot"
     diagnostics = request("/diagnostics")
     assert diagnostics["ok"] is True
     state = request("/state")
@@ -53,6 +55,8 @@ def main() -> None:
     assert "SystemState" in schemas
     acceptance = request("/acceptance")
     assert acceptance["ok"] is True
+    bundle = request("/export")
+    assert bundle["project"] == "CookBot"
     snapshot = request("/camera/snapshot")
     assert snapshot["data_url"].startswith("data:image/svg+xml;base64,")
     calibration = request("/calibration/status")

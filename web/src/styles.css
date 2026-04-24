@@ -288,7 +288,8 @@ input[type="range"] {
 
 .workspace-list,
 .diagnostic-list,
-.log-list {
+.log-list,
+.settings-grid {
   display: grid;
   gap: 8px;
 }
@@ -316,6 +317,25 @@ input[type="range"] {
 
 .diagnostic-item.warn {
   border-left: 4px solid #e9c46a;
+}
+
+.token-field {
+  display: grid;
+  gap: 6px;
+}
+
+.token-field span {
+  color: #aab4b9;
+  font-size: 0.86rem;
+}
+
+.token-field input {
+  min-height: 42px;
+  border: 1px solid #3e484d;
+  border-radius: 8px;
+  background: #111518;
+  color: #edf1f3;
+  padding: 0 10px;
 }
 
 @media (max-width: 820px) {

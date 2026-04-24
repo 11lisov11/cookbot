@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     ai_base_url: str = Field(default="https://api.openai.com/v1", alias="COOKBOT_AI_BASE_URL")
     ai_api_key: str | None = Field(default=None, alias="COOKBOT_AI_API_KEY")
     ai_model: str = Field(default="gpt-4o-mini", alias="COOKBOT_AI_MODEL")
+    api_token: str | None = Field(default=None, alias="COOKBOT_API_TOKEN")
     log_path: Path = Field(default=Path("logs/cookbot.jsonl"), alias="COOKBOT_LOG_PATH")
     recipes_dir: Path = Field(default=Path("recipes"), alias="COOKBOT_RECIPES_DIR")
     config_dir: Path = Field(default=Path("config"), alias="COOKBOT_CONFIG_DIR")

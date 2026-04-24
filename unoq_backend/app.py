@@ -3,9 +3,9 @@ import base64
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .ai import MockAIClient, OpenAICompatibleClient
@@ -26,6 +26,7 @@ from .models import (
     CommandLogEntry,
     DiagnosticCheck,
     DiagnosticsResponse,
+    ExportBundle,
     FaultInjectionRequest,
     GripperRequest,
     HardwareReadinessResponse,
@@ -33,6 +34,7 @@ from .models import (
     JointMoveRequest,
     MegaRequest,
     MegaResponse,
+    PublicSettings,
     RecipePreflightResponse,
     RecipeRunResponse,
     RecipeRuntimeStatus,
@@ -87,6 +89,17 @@ class CookBotController:
     async def health(self) -> HealthResponse:
         state = await self.state()
         return HealthResponse(status="ok", mode=self.settings.mode, services=state.services)
+
+    def public_settings(self) -> PublicSettings:
+        return PublicSettings(
+            mode=self.settings.mode,
+            mega_transport=self.settings.mega_transport,
+            camera=self.settings.camera,
+            ai=self.settings.ai,
+            bind=self.settings.bind,
+            port=self.settings.port,
+            api_auth_required=bool(self.settings.api_token),
+        )
 
     async def diagnostics(self) -> DiagnosticsResponse:
         checks: list[DiagnosticCheck] = []
@@ -413,6 +426,17 @@ class CookBotController:
         ]
         return AcceptanceReport(ok=all(item.ok for item in items), items=items)
 
+    async def export_bundle(self) -> ExportBundle:
+        return ExportBundle(
+            state=await self.state(),
+            diagnostics=await self.diagnostics(),
+            acceptance=await self.acceptance_report(),
+            recipes=self.list_recipes(),
+            workspace=self.workspace_model(),
+            hardware_readiness=self.hardware_readiness_model(),
+            calibration=await self.calibration_status(),
+        )
+
     def schemas(self) -> dict[str, Any]:
         return {
             "SystemState": SystemState.model_json_schema(),
@@ -422,6 +446,7 @@ class CookBotController:
             "HardwareReadinessResponse": HardwareReadinessResponse.model_json_schema(),
             "WorkspaceModel": WorkspaceModel.model_json_schema(),
             "AcceptanceReport": AcceptanceReport.model_json_schema(),
+            "ExportBundle": ExportBundle.model_json_schema(),
         }
 
     async def _execute_recipe_step(self, step: dict[str, Any]) -> None:
@@ -469,6 +494,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     controller = CookBotController(resolved_settings)
     app = FastAPI(title=resolved_settings.api_title)
     app.state.controller = controller
+
+    @app.middleware("http")
+    async def optional_api_token_guard(request: Request, call_next):
+        token = resolved_settings.api_token
+        if token and _requires_api_token(request.url.path):
+            supplied = request.headers.get("X-CookBot-Token") or request.query_params.get("cookbot_token")
+            if supplied != token:
+                return JSONResponse(status_code=401, content={"detail": "cookbot_token_required"})
+        return await call_next(request)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
@@ -480,6 +515,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
         return await controller.health()
+
+    @app.get("/settings", response_model=PublicSettings)
+    async def settings() -> PublicSettings:
+        return controller.public_settings()
 
     @app.get("/diagnostics", response_model=DiagnosticsResponse)
     async def diagnostics() -> DiagnosticsResponse:
@@ -603,6 +642,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def acceptance() -> AcceptanceReport:
         return await controller.acceptance_report()
 
+    @app.get("/export", response_model=ExportBundle)
+    async def export_bundle() -> ExportBundle:
+        return await controller.export_bundle()
+
     @app.get("/schemas")
     async def schemas() -> dict[str, Any]:
         return controller.schemas()
@@ -644,6 +687,22 @@ async def _safe_async(fn):
         return await fn()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _requires_api_token(path: str) -> bool:
+    public_paths = {
+        "/",
+        "/health",
+        "/settings",
+        "/manifest.webmanifest",
+        "/icon.svg",
+        "/sw.js",
+        "/favicon.ico",
+    }
+    public_prefixes = ("/assets/", "/docs", "/openapi.json", "/redoc")
+    if path in public_paths or any(path.startswith(prefix) for prefix in public_prefixes):
+        return False
+    return True
 
 
 app = create_app()

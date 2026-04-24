@@ -113,11 +113,27 @@ type AcceptanceReport = {
   items: Array<{ id: string; label: string; ok: boolean; detail: string }>;
 };
 
+type PublicSettings = {
+  app: "CookBot";
+  mode: string;
+  mega_transport: string;
+  camera: string;
+  ai: string;
+  bind: string;
+  port: number;
+  api_auth_required: boolean;
+};
+
 const API_BASE = import.meta.env.VITE_API_BASE || window.location.origin;
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = localStorage.getItem("cookbot_api_token");
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "X-CookBot-Token": token } : {}),
+      ...(init?.headers || {})
+    },
     ...init
   });
   if (!response.ok) {
@@ -138,6 +154,8 @@ export default function App() {
   const [hardwareReadiness, setHardwareReadiness] = useState<HardwareReadinessResponse | null>(null);
   const [wizard, setWizard] = useState<CalibrationWizardStatus | null>(null);
   const [acceptance, setAcceptance] = useState<AcceptanceReport | null>(null);
+  const [settings, setSettings] = useState<PublicSettings | null>(null);
+  const [apiToken, setApiToken] = useState(() => localStorage.getItem("cookbot_api_token") || "");
   const [axisTargets, setAxisTargets] = useState<Record<string, number>>({});
   const [gripperTarget, setGripperTarget] = useState(0);
   const [aiCommand, setAiCommand] = useState("look at the workspace");
@@ -161,6 +179,7 @@ export default function App() {
 
   async function refreshAll() {
     try {
+      const nextSettings = await api<PublicSettings>("/settings");
       const [nextState, nextSnapshot, nextRecipes] = await Promise.all([
         api<SystemState>("/state"),
         api<CameraSnapshot>("/camera/snapshot"),
@@ -176,6 +195,7 @@ export default function App() {
         api<AcceptanceReport>("/acceptance")
       ]);
       setState(nextState);
+      setSettings(nextSettings);
       setSnapshot(nextSnapshot);
       setRecipes(nextRecipes);
       setRuntime(nextRuntime);
@@ -245,6 +265,37 @@ export default function App() {
     recognition.start();
   }
 
+  function saveApiToken() {
+    if (apiToken.trim()) {
+      localStorage.setItem("cookbot_api_token", apiToken.trim());
+    } else {
+      localStorage.removeItem("cookbot_api_token");
+    }
+    refreshAll();
+  }
+
+  async function downloadExport() {
+    try {
+      const bundle = await api<Record<string, unknown>>("/export");
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "cookbot-export.json";
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setMessage("CookBot export downloaded");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "CookBot export failed");
+    }
+  }
+
+  function cameraStreamUrl() {
+    const token = localStorage.getItem("cookbot_api_token");
+    const suffix = token ? `?cookbot_token=${encodeURIComponent(token)}` : "";
+    return `${API_BASE}/camera/stream${suffix}`;
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -291,7 +342,7 @@ export default function App() {
             </button>
           </div>
           {useStream ? (
-            <img src={`${API_BASE}/camera/stream`} alt="CookBot mock camera stream" />
+            <img src={cameraStreamUrl()} alt="CookBot mock camera stream" />
           ) : snapshot ? (
             <img src={snapshot.data_url} alt="CookBot mock camera" />
           ) : (
@@ -567,6 +618,37 @@ export default function App() {
                 <span>{item.detail}</span>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-title">
+            <FileText size={19} />
+            <h2>Settings</h2>
+          </div>
+          <div className="settings-grid">
+            <div className="diagnostic-item ok">
+              <strong>API auth</strong>
+              <span>{settings?.api_auth_required ? "token required" : "not required"}</span>
+            </div>
+            <div className="diagnostic-item ok">
+              <strong>mode</strong>
+              <span>{settings?.mode || "unknown"} / {settings?.mega_transport || "unknown"}</span>
+            </div>
+            <label className="token-field">
+              <span>API token</span>
+              <input value={apiToken} onChange={(event) => setApiToken(event.target.value)} type="password" />
+            </label>
+            <div className="button-row two">
+              <button type="button" onClick={saveApiToken}>
+                <CheckCircle2 size={17} />
+                Save token
+              </button>
+              <button type="button" onClick={downloadExport}>
+                <FileText size={17} />
+                Export
+              </button>
+            </div>
           </div>
         </section>
       </div>

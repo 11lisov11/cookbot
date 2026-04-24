@@ -49,6 +49,17 @@ class HealthResponse(BaseModel):
     services: dict[str, str]
 
 
+class PublicSettings(BaseModel):
+    app: Literal["CookBot"] = "CookBot"
+    mode: str
+    mega_transport: str
+    camera: str
+    ai: str
+    bind: str
+    port: int
+    api_auth_required: bool
+
+
 class JointMoveRequest(BaseModel):
     position: float
     speed: float = Field(default=0.25, ge=0.01, le=1.0)
@@ -242,3 +253,14 @@ class AcceptanceReport(BaseModel):
     project: Literal["CookBot"] = "CookBot"
     ok: bool
     items: list[ChecklistItem] = Field(default_factory=list)
+
+
+class ExportBundle(BaseModel):
+    project: Literal["CookBot"] = "CookBot"
+    state: SystemState
+    diagnostics: DiagnosticsResponse
+    acceptance: AcceptanceReport
+    recipes: list[RecipeSummary]
+    workspace: WorkspaceModel
+    hardware_readiness: HardwareReadinessResponse
+    calibration: CalibrationStatus

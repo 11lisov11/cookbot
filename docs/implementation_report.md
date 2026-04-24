@@ -73,6 +73,9 @@ Current passing checks:
 - `/simulator/faults` injects no-hardware faults.
 - `/acceptance` reports no-hardware software acceptance status.
 - `/calibration/wizard/*` walks through the simulator calibration workflow.
+- `/settings` exposes non-secret runtime settings.
+- `/export` downloads a CookBot status bundle for diagnostics.
+- `COOKBOT_API_TOKEN` optionally protects dynamic API endpoints.
 
 ## Real Hardware Still Required
 

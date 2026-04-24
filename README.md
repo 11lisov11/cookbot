@@ -84,6 +84,7 @@ The simulator exposes `joint_1`, `joint_2`, `joint_3`, and `gripper` as safe pla
 ## API
 
 - `GET /health`
+- `GET /settings`
 - `GET /diagnostics`
 - `GET /state`
 - `GET /camera/snapshot`
@@ -113,6 +114,7 @@ The simulator exposes `joint_1`, `joint_2`, `joint_3`, and `gripper` as safe pla
 - `GET /hardware/readiness`
 - `GET /schemas`
 - `GET /acceptance`
+- `GET /export`
 - `GET /logs`
 - `POST /simulator/faults`
 - `DELETE /simulator/faults`
@@ -172,6 +174,15 @@ No-hardware acceptance report:
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/acceptance
 ```
+
+Optional local API token:
+
+```powershell
+$env:COOKBOT_API_TOKEN="change-me"
+python -m uvicorn unoq_backend.app:app --host 127.0.0.1 --port 8000
+```
+
+The PWA Settings panel stores this token in browser local storage and sends it as `X-CookBot-Token`.
 
 ## OpenAI-Compatible AI Boundary
 

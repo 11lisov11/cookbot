@@ -1,0 +1,55 @@
+name: CookBot checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Python tests
+        run: python -m pytest tests/
+
+      - name: Python compile
+        run: python -m compileall unoq_backend
+
+      - name: Backend smoke
+        run: |
+          python -m uvicorn unoq_backend.app:app --host 127.0.0.1 --port 8766 &
+          PID=$!
+          python scripts/smoke_backend.py http://127.0.0.1:8766
+          kill $PID
+
+      - name: Fake Mega smoke
+        run: python scripts/smoke_fake_mega.py
+
+      - name: Web build
+        working-directory: web
+        run: |
+          npm install
+          npm run build
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Arduino Mega compile
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+          arduino-cli compile --fqbn arduino:avr:mega mega_firmware/cookbot_mega_firmware
