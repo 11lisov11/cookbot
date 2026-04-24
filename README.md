@@ -1,8 +1,16 @@
 # CookBot
 
+[![CookBot checks](https://github.com/11lisov11/cookbot/actions/workflows/check.yml/badge.svg)](https://github.com/11lisov11/cookbot/actions/workflows/check.yml)
+
 CookBot Robot Cook Assistant is a no-hardware MVP for an Arduino UNO Q + Arduino Mega robot cook workflow. The UNO Q runs the FastAPI backend, PWA, camera/AI mocks, safety layer, and recipe engine. The Arduino Mega remains the low-level motion controller.
 
 This repository starts safe by default: simulator mode, fake Mega, mock camera, and mock AI. It does not require real hardware, a camera, or an AI API key.
+
+Current status: v0.1 is a finished no-hardware product. It is installable, testable, documented, demo-ready, and CI-backed. It is not ready for real motor movement or real cooking.
+
+## Not Ready For Real Motion
+
+Real motion remains locked. Do not connect motors expecting movement from this release. The firmware has no real pin map, the hardware readiness file has no verified evidence, and the backend treats real-motion readiness as a hardware-only blocker. Heating, knives, relays, raw Mega commands, arbitrary code execution, and direct autonomous cooking are rejected.
 
 ## Quick Start
 
@@ -85,6 +93,7 @@ The simulator exposes `joint_1`, `joint_2`, `joint_3`, and `gripper` as safe pla
 
 - `GET /health`
 - `GET /settings`
+- `GET /version`
 - `GET /diagnostics`
 - `GET /state`
 - `GET /camera/snapshot`
@@ -114,7 +123,10 @@ The simulator exposes `joint_1`, `joint_2`, `joint_3`, and `gripper` as safe pla
 - `GET /hardware/readiness`
 - `GET /schemas`
 - `GET /acceptance`
+- `GET /product/readiness`
 - `GET /export`
+- `GET /backup`
+- `POST /restore/validate`
 - `GET /logs`
 - `POST /simulator/faults`
 - `DELETE /simulator/faults`
@@ -138,7 +150,7 @@ The sketch intentionally rejects real motion until the pin map, drivers, limits,
 - Optional `COOKBOT_CAMERA=libcamera` captures snapshots through `libcamera-still` on Linux/UNO Q.
 - The PWA includes a manifest and service worker for an installable local app shell.
 - AI is a deterministic mock that lets CookBot safety reject forbidden cooking actions.
-- Recipes are YAML files; `dry_run_stir_demo` can run after homing, `supervised_scrambled_eggs` is locked.
+- Recipes are YAML files; `dry_run_stir_demo`, `dry_run_pick_place_demo`, `camera_inspection_demo`, and `gripper_cycle_demo` are no-heat demos. `supervised_scrambled_eggs` is locked.
 - No heating, knife handling, relay control, cloud backend, ROS2, Docker, or internet dependency is used in the MVP.
 
 ## Diagnostics and Fault Injection
@@ -173,6 +185,18 @@ No-hardware acceptance report:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/acceptance
+```
+
+Product readiness:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/product/readiness
+```
+
+Safe backup:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/backup
 ```
 
 Optional local API token:

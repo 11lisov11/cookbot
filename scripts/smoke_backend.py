@@ -43,6 +43,9 @@ def main() -> None:
     assert health["app"] == "CookBot"
     settings = request("/settings")
     assert settings["app"] == "CookBot"
+    version = request("/version")
+    assert version["app"] == "CookBot"
+    assert version["api_schema_version"] == "1"
     diagnostics = request("/diagnostics")
     assert diagnostics["ok"] is True
     state = request("/state")
@@ -53,10 +56,17 @@ def main() -> None:
     assert readiness["ready_for_real_motion"] is False
     schemas = request("/schemas")
     assert "SystemState" in schemas
+    assert "BackupBundle" in schemas
     acceptance = request("/acceptance")
     assert acceptance["ok"] is True
+    readiness_report = request("/product/readiness")
+    assert readiness_report["status"] == "no_hardware_product_ready"
     bundle = request("/export")
     assert bundle["project"] == "CookBot"
+    backup = request("/backup")
+    assert backup["kind"] == "cookbot_backup"
+    restore = request("/restore/validate", "POST", backup)
+    assert restore["valid"] is True
     snapshot = request("/camera/snapshot")
     assert snapshot["data_url"].startswith("data:image/svg+xml;base64,")
     calibration = request("/calibration/status")

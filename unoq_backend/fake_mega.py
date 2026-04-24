@@ -31,6 +31,12 @@ class FakeMegaDevice:
             return {"pong": True}
         if command == "get_capabilities":
             return {"capabilities": self.simulator.capabilities()}
+        if command == "get_hardware_config":
+            return {"hardware_config": self.simulator.hardware_config()}
+        if command == "get_limit_switches":
+            return {"limit_switches": self.simulator.limit_switches()}
+        if command == "self_test":
+            return {"self_test": self.simulator.self_test()}
         if command == "get_faults":
             return {"faults": self.simulator.faults()}
         if command == "inject_fault":

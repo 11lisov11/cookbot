@@ -59,6 +59,18 @@ void handleLine(const String &line) {
     sendOk(id, "\"capabilities\":" + capabilitiesJson());
     return;
   }
+  if (command == "get_hardware_config") {
+    sendOk(id, "\"hardware_config\":" + hardwareConfigJson());
+    return;
+  }
+  if (command == "get_limit_switches") {
+    sendOk(id, "\"limit_switches\":" + limitSwitchesJson());
+    return;
+  }
+  if (command == "self_test") {
+    sendOk(id, "\"self_test\":" + selfTestJson());
+    return;
+  }
   if (command == "get_faults") {
     sendOk(id, "\"faults\":" + faultsJson());
     return;
@@ -173,7 +185,21 @@ void sendState(const String &id) {
 
 String capabilitiesJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  return "{\"protocol_version\":1,\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.1.0\",\"hardware_configured\":" + configured + ",\"motion_commands_enabled\":false,\"supported_commands\":[\"hello\",\"ping\",\"get_state\",\"get_capabilities\",\"get_faults\",\"inject_fault\",\"clear_faults\",\"enable_motion\",\"home_all\",\"set_joint\",\"set_gripper\",\"estop\",\"clear_estop\"]}";
+  return "{\"protocol_version\":1,\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.1.0\",\"hardware_configured\":" + configured + ",\"motion_commands_enabled\":false,\"supported_commands\":[\"hello\",\"ping\",\"get_state\",\"get_capabilities\",\"get_hardware_config\",\"get_limit_switches\",\"self_test\",\"get_faults\",\"inject_fault\",\"clear_faults\",\"enable_motion\",\"home_all\",\"set_joint\",\"set_gripper\",\"estop\",\"clear_estop\"]}";
+}
+
+String hardwareConfigJson() {
+  String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
+  return "{\"hardware_configured\":" + configured + ",\"axis_count\":" + String(COOKBOT_AXIS_COUNT) + ",\"limit_switch_count\":" + String(COOKBOT_LIMIT_SWITCH_COUNT) + ",\"estop_pin\":" + String(COOKBOT_ESTOP_PIN) + ",\"gripper_pin\":" + String(COOKBOT_GRIPPER_PIN) + ",\"axis_pin_configured\":false,\"note\":\"placeholder_only_real_motion_locked\"}";
+}
+
+String limitSwitchesJson() {
+  return "{\"configured\":false,\"switches\":[]}";
+}
+
+String selfTestJson() {
+  String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
+  return "{\"ok\":true,\"hardware_configured\":" + configured + ",\"motion_outputs_enabled\":false,\"checks\":[{\"id\":\"serial\",\"ok\":true},{\"id\":\"hardware_config\",\"ok\":true,\"detail\":\"placeholder\"},{\"id\":\"motion_outputs\",\"ok\":true,\"detail\":\"disabled\"}]}";
 }
 
 String faultsJson() {

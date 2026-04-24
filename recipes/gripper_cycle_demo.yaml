@@ -1,0 +1,21 @@
+id: gripper_cycle_demo
+name: Gripper Cycle Demo
+description: No-heat simulator gripper open/close cycle after homing.
+locked: false
+requires_homing: true
+requires_calibration: false
+requires_verified_workspace: false
+requires_real_motion: false
+steps:
+  - type: recipe_note
+    text: Gripper cycle starts after simulator homing.
+  - type: set_gripper
+    position: 0.0
+  - type: wait
+    seconds: 0.05
+  - type: set_gripper
+    position: 1.0
+  - type: wait
+    seconds: 0.05
+  - type: set_gripper
+    position: 0.4

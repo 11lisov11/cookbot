@@ -60,6 +60,15 @@ class PublicSettings(BaseModel):
     api_auth_required: bool
 
 
+class VersionResponse(BaseModel):
+    app: Literal["CookBot"] = "CookBot"
+    backend_version: str
+    git_commit: str
+    build_mode: str
+    api_schema_version: str = "1"
+    hardware_configured: bool = False
+
+
 class JointMoveRequest(BaseModel):
     position: float
     speed: float = Field(default=0.25, ge=0.01, le=1.0)
@@ -264,3 +273,32 @@ class ExportBundle(BaseModel):
     workspace: WorkspaceModel
     hardware_readiness: HardwareReadinessResponse
     calibration: CalibrationStatus
+
+
+class BackupBundle(BaseModel):
+    project: Literal["CookBot"] = "CookBot"
+    kind: Literal["cookbot_backup"] = "cookbot_backup"
+    backup_version: Literal["1"] = "1"
+    created_at: datetime = Field(default_factory=utc_now)
+    workspace: WorkspaceModel
+    hardware_readiness: HardwareReadinessResponse
+    calibration: CalibrationStatus
+    recipes: list[RecipeSummary]
+    acceptance: AcceptanceReport
+
+
+class RestoreValidationResponse(BaseModel):
+    valid: bool
+    reasons: list[str] = Field(default_factory=list)
+    accepted_sections: list[str] = Field(default_factory=list)
+    applies_real_motion_settings: bool = False
+
+
+class ProductReadinessResponse(BaseModel):
+    project: Literal["CookBot"] = "CookBot"
+    ok: bool
+    status: str
+    acceptance: AcceptanceReport
+    diagnostics: DiagnosticsResponse
+    hardware_readiness: HardwareReadinessResponse
+    items: list[ChecklistItem] = Field(default_factory=list)

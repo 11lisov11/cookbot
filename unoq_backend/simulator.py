@@ -156,6 +156,9 @@ class CookBotSimulator:
                 "ping",
                 "get_state",
                 "get_capabilities",
+                "get_hardware_config",
+                "get_limit_switches",
+                "self_test",
                 "get_faults",
                 "inject_fault",
                 "clear_faults",
@@ -165,6 +168,32 @@ class CookBotSimulator:
                 "set_gripper",
                 "estop",
                 "clear_estop",
+            ],
+        }
+
+    def hardware_config(self) -> dict[str, Any]:
+        return {
+            "hardware_configured": False,
+            "axis_count": 0,
+            "limit_switch_count": 0,
+            "estop_pin": -1,
+            "gripper_pin": -1,
+            "axis_pin_configured": False,
+            "note": "fake_mega_placeholder_real_motion_locked",
+        }
+
+    def limit_switches(self) -> dict[str, Any]:
+        return {"configured": False, "switches": self.snapshot().limit_switches}
+
+    def self_test(self) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "hardware_configured": False,
+            "motion_outputs_enabled": False,
+            "checks": [
+                {"id": "backend_simulator", "ok": True},
+                {"id": "hardware_config", "ok": True, "detail": "placeholder"},
+                {"id": "motion_outputs", "ok": True, "detail": "fake_transport_only"},
             ],
         }
 

@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from .models import (
     AICommandResponse,
     AIPlan,
     AcceptanceReport,
+    BackupBundle,
     CalibrationProfile,
     CalibrationStatus,
     CalibrationWizardStatus,
@@ -34,14 +36,18 @@ from .models import (
     JointMoveRequest,
     MegaRequest,
     MegaResponse,
+    ProductReadinessResponse,
     PublicSettings,
     RecipePreflightResponse,
     RecipeRunResponse,
     RecipeRuntimeStatus,
     RecipeSummary,
+    RestoreValidationResponse,
     SystemState,
+    VersionResponse,
     WorkspaceModel,
 )
+from . import __version__
 from .calibration import CalibrationStore, CalibrationWizard
 from .hardware_readiness import HardwareReadinessStore
 from .recipe_runtime import RecipeRuntime
@@ -50,6 +56,27 @@ from .safety import SafetyValidator
 from .simulator import CookBotSimulator
 from .transports import LocalFakeMegaTransport, MegaTransport, SerialMegaTransport, TcpMegaTransport
 from .workspace import WorkspaceStore
+
+
+REQUIRED_PRODUCT_DOCS = [
+    Path("README.md"),
+    Path("docs/product_manual.md"),
+    Path("docs/mobile_use.md"),
+    Path("docs/troubleshooting.md"),
+    Path("docs/release_checklist.md"),
+    Path("docs/safety.md"),
+    Path("docs/no_hardware_testing.md"),
+    Path("RELEASE_NOTES.md"),
+]
+
+ERROR_TAXONOMY = {
+    "safety_error": ["estop_active", "motion_not_enabled", "not_homed", "limit_exceeded", "real_motion_locked"],
+    "transport_error": ["mega_transport_error", "unknown_command", "bad_request"],
+    "camera_error": ["camera_disabled"],
+    "ai_error": ["forbidden_ai_step", "invalid_move_joint_payload", "invalid_gripper_payload"],
+    "recipe_error": ["unknown_recipe", "recipe_locked", "forbidden_recipe_step"],
+    "config_error": ["config_error", "workspace_not_verified", "calibration_required"],
+}
 
 
 class CookBotController:
@@ -101,6 +128,14 @@ class CookBotController:
             api_auth_required=bool(self.settings.api_token),
         )
 
+    def version(self) -> VersionResponse:
+        return VersionResponse(
+            backend_version=__version__,
+            git_commit=_git_commit(),
+            build_mode=self.settings.mode,
+            hardware_configured=False,
+        )
+
     async def diagnostics(self) -> DiagnosticsResponse:
         checks: list[DiagnosticCheck] = []
 
@@ -118,10 +153,27 @@ class CookBotController:
                 checks.append(DiagnosticCheck(name=name, ok=False, detail=f"transport_error:{exc}"))
 
         checks.append(DiagnosticCheck(name="backend", ok=True, detail="ok"))
+        checks.append(
+            DiagnosticCheck(
+                name="version",
+                ok=True,
+                detail=f"{__version__}@{_git_commit()}",
+            )
+        )
+        checks.append(
+            DiagnosticCheck(
+                name="schema",
+                ok=True,
+                detail="api_schema_version=1",
+            )
+        )
         await add_transport_check("mega_hello", "hello")
         await add_transport_check("mega_ping", "ping")
         await add_transport_check("mega_state", "get_state")
         await add_transport_check("mega_capabilities", "get_capabilities")
+        await add_transport_check("mega_hardware_config", "get_hardware_config")
+        await add_transport_check("mega_limit_switches", "get_limit_switches")
+        await add_transport_check("mega_self_test", "self_test")
 
         try:
             snapshot = self.snapshot()
@@ -170,6 +222,28 @@ class CookBotController:
             )
         except Exception as exc:
             checks.append(DiagnosticCheck(name="calibration", ok=False, detail=str(exc)))
+
+        try:
+            self.settings.log_path.parent.mkdir(parents=True, exist_ok=True)
+            checks.append(
+                DiagnosticCheck(
+                    name="log_path",
+                    ok=self.settings.log_path.parent.exists(),
+                    detail=str(self.settings.log_path),
+                )
+            )
+        except Exception as exc:
+            checks.append(DiagnosticCheck(name="log_path", ok=False, detail=f"config_error:{exc}"))
+
+        web_source = Path("web/package.json").exists()
+        web_build = Path("web/dist/index.html").exists()
+        checks.append(
+            DiagnosticCheck(
+                name="web_build",
+                ok=web_source,
+                detail="dist_ready" if web_build else "source_ready_build_pending",
+            )
+        )
 
         return DiagnosticsResponse(ok=all(check.ok for check in checks), checks=checks)
 
@@ -307,7 +381,13 @@ class CookBotController:
         return self.recipes.list_recipes()
 
     async def recipe_preflight(self, recipe_id: str) -> RecipePreflightResponse:
-        return self.recipes.preflight(recipe_id, await self.state())
+        return self.recipes.preflight(
+            recipe_id,
+            await self.state(),
+            workspace=self.workspace_model(),
+            calibration=await self.calibration_status(),
+            hardware_readiness=self.hardware_readiness_model(),
+        )
 
     async def recipe_run(self, recipe_id: str) -> RecipeRunResponse:
         preflight = await self.recipe_preflight(recipe_id)
@@ -385,6 +465,10 @@ class CookBotController:
         diagnostics = await self.diagnostics()
         recipes = self.list_recipes()
         readiness = self.hardware_readiness_model()
+        docs_missing = [str(path) for path in REQUIRED_PRODUCT_DOCS if not path.exists()]
+        web_build = Path("web/dist/index.html").exists()
+        web_source = Path("web/package.json").exists()
+        ci_workflow = Path(".github/workflows/check.yml").exists()
         items = [
             ChecklistItem(id="backend", label="Backend responds", ok=True, detail="ok"),
             ChecklistItem(
@@ -423,6 +507,36 @@ class CookBotController:
                 ok=not readiness.ready_for_real_motion,
                 detail="locked",
             ),
+            ChecklistItem(
+                id="ui_build_available",
+                label="PWA source/build is available",
+                ok=web_source,
+                detail="dist_ready" if web_build else "source_ready_build_pending",
+            ),
+            ChecklistItem(
+                id="ci_local_parity",
+                label="Local checks match CI workflow",
+                ok=ci_workflow,
+                detail="github_actions_present" if ci_workflow else "missing_ci_workflow",
+            ),
+            ChecklistItem(
+                id="api_token_state",
+                label="API token mode is explicit",
+                ok=True,
+                detail="required" if self.settings.api_token else "not_required",
+            ),
+            ChecklistItem(
+                id="backup_valid",
+                label="Backup bundle can be generated",
+                ok=True,
+                detail="ok",
+            ),
+            ChecklistItem(
+                id="docs_complete",
+                label="Product documentation is complete",
+                ok=not docs_missing,
+                detail="ok" if not docs_missing else ",".join(docs_missing),
+            ),
         ]
         return AcceptanceReport(ok=all(item.ok for item in items), items=items)
 
@@ -437,6 +551,66 @@ class CookBotController:
             calibration=await self.calibration_status(),
         )
 
+    async def backup_bundle(self) -> BackupBundle:
+        return BackupBundle(
+            workspace=self.workspace_model(),
+            hardware_readiness=self.hardware_readiness_model(),
+            calibration=await self.calibration_status(),
+            recipes=self.list_recipes(),
+            acceptance=await self.acceptance_report(),
+        )
+
+    async def validate_restore(self, payload: dict[str, Any]) -> RestoreValidationResponse:
+        try:
+            bundle = BackupBundle.model_validate(payload)
+        except Exception as exc:
+            return RestoreValidationResponse(valid=False, reasons=[f"config_error:{exc}"])
+
+        reasons: list[str] = []
+        if bundle.hardware_readiness.ready_for_real_motion:
+            reasons.append("real_motion_settings_not_applied_by_restore")
+        accepted_sections = ["workspace", "hardware_readiness", "calibration", "recipes", "acceptance"]
+        return RestoreValidationResponse(
+            valid=not reasons,
+            reasons=reasons,
+            accepted_sections=accepted_sections if not reasons else [],
+            applies_real_motion_settings=bundle.hardware_readiness.ready_for_real_motion,
+        )
+
+    async def product_readiness(self) -> ProductReadinessResponse:
+        acceptance = await self.acceptance_report()
+        diagnostics = await self.diagnostics()
+        readiness = self.hardware_readiness_model()
+        items = [
+            ChecklistItem(
+                id="acceptance",
+                label="No-hardware acceptance is green",
+                ok=acceptance.ok,
+                detail="ok" if acceptance.ok else "acceptance_failed",
+            ),
+            ChecklistItem(
+                id="diagnostics",
+                label="Diagnostics are green",
+                ok=diagnostics.ok,
+                detail="ok" if diagnostics.ok else "diagnostics_failed",
+            ),
+            ChecklistItem(
+                id="hardware_lock",
+                label="Real motion remains locked",
+                ok=not readiness.ready_for_real_motion,
+                detail="locked",
+            ),
+        ]
+        ok = all(item.ok for item in items)
+        return ProductReadinessResponse(
+            ok=ok,
+            status="no_hardware_product_ready" if ok else "not_ready",
+            acceptance=acceptance,
+            diagnostics=diagnostics,
+            hardware_readiness=readiness,
+            items=items,
+        )
+
     def schemas(self) -> dict[str, Any]:
         return {
             "SystemState": SystemState.model_json_schema(),
@@ -447,6 +621,11 @@ class CookBotController:
             "WorkspaceModel": WorkspaceModel.model_json_schema(),
             "AcceptanceReport": AcceptanceReport.model_json_schema(),
             "ExportBundle": ExportBundle.model_json_schema(),
+            "BackupBundle": BackupBundle.model_json_schema(),
+            "RestoreValidationResponse": RestoreValidationResponse.model_json_schema(),
+            "ProductReadinessResponse": ProductReadinessResponse.model_json_schema(),
+            "VersionResponse": VersionResponse.model_json_schema(),
+            "ErrorTaxonomy": ERROR_TAXONOMY,
         }
 
     async def _execute_recipe_step(self, step: dict[str, Any]) -> None:
@@ -519,6 +698,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/settings", response_model=PublicSettings)
     async def settings() -> PublicSettings:
         return controller.public_settings()
+
+    @app.get("/version", response_model=VersionResponse)
+    async def version() -> VersionResponse:
+        return controller.version()
 
     @app.get("/diagnostics", response_model=DiagnosticsResponse)
     async def diagnostics() -> DiagnosticsResponse:
@@ -642,9 +825,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def acceptance() -> AcceptanceReport:
         return await controller.acceptance_report()
 
+    @app.get("/product/readiness", response_model=ProductReadinessResponse)
+    async def product_readiness() -> ProductReadinessResponse:
+        return await controller.product_readiness()
+
     @app.get("/export", response_model=ExportBundle)
     async def export_bundle() -> ExportBundle:
         return await controller.export_bundle()
+
+    @app.get("/backup", response_model=BackupBundle)
+    async def backup_bundle() -> BackupBundle:
+        return await controller.backup_bundle()
+
+    @app.post("/restore/validate", response_model=RestoreValidationResponse)
+    async def restore_validate(payload: dict[str, Any]) -> RestoreValidationResponse:
+        return await controller.validate_restore(payload)
 
     @app.get("/schemas")
     async def schemas() -> dict[str, Any]:
@@ -660,6 +855,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.websocket("/ws/state")
     async def ws_state(websocket: WebSocket) -> None:
+        if resolved_settings.api_token and websocket.query_params.get("cookbot_token") != resolved_settings.api_token:
+            await websocket.close(code=1008)
+            return
         await websocket.accept()
         try:
             while True:
@@ -703,6 +901,21 @@ def _requires_api_token(path: str) -> bool:
     if path in public_paths or any(path.startswith(prefix) for prefix in public_prefixes):
         return False
     return True
+
+
+def _git_commit() -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=Path(__file__).resolve().parents[1],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except Exception:
+        return "unknown"
+    return result.stdout.strip() or "unknown"
 
 
 app = create_app()

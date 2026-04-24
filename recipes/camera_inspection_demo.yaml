@@ -1,0 +1,16 @@
+id: camera_inspection_demo
+name: Camera Inspection Demo
+description: No-motion camera and note demo for phone/PWA verification.
+locked: false
+requires_homing: false
+requires_calibration: false
+requires_verified_workspace: false
+requires_real_motion: false
+steps:
+  - type: recipe_note
+    text: Camera inspection demo captures a mock snapshot without moving any axis.
+  - type: snapshot
+  - type: wait
+    seconds: 0.05
+  - type: recipe_note
+    text: Inspection complete.

@@ -23,6 +23,13 @@ async def main() -> None:
         capabilities = await transport.send("get_capabilities")
         assert capabilities.ok is True
         assert capabilities.data["capabilities"]["hardware_configured"] is False
+        hardware_config = await transport.send("get_hardware_config")
+        assert hardware_config.ok is True
+        assert hardware_config.data["hardware_config"]["hardware_configured"] is False
+        assert (await transport.send("get_limit_switches")).ok is True
+        self_test = await transport.send("self_test")
+        assert self_test.ok is True
+        assert self_test.data["self_test"]["motion_outputs_enabled"] is False
         assert (await transport.send("ping")).data["pong"] is True
         assert (await transport.send("get_state")).ok is True
         before_home = await transport.send("set_joint", {"joint_id": "joint_1", "position": 1.0})

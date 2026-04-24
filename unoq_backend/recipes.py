@@ -4,7 +4,15 @@ from typing import Any
 
 import yaml
 
-from .models import ChecklistItem, RecipePreflightResponse, RecipeSummary, SystemState
+from .models import (
+    CalibrationStatus,
+    ChecklistItem,
+    HardwareReadinessResponse,
+    RecipePreflightResponse,
+    RecipeSummary,
+    SystemState,
+    WorkspaceModel,
+)
 from .safety import ALLOWED_AI_STEPS, FORBIDDEN_AI_STEPS
 
 
@@ -15,6 +23,9 @@ class Recipe:
     description: str
     locked: bool
     requires_homing: bool
+    requires_calibration: bool
+    requires_verified_workspace: bool
+    requires_real_motion: bool
     steps: list[dict[str, Any]]
 
 
@@ -34,7 +45,14 @@ class RecipeEngine:
                 return recipe
         raise ValueError("unknown_recipe")
 
-    def preflight(self, recipe_id: str, state: SystemState) -> RecipePreflightResponse:
+    def preflight(
+        self,
+        recipe_id: str,
+        state: SystemState,
+        workspace: WorkspaceModel | None = None,
+        calibration: CalibrationStatus | None = None,
+        hardware_readiness: HardwareReadinessResponse | None = None,
+    ) -> RecipePreflightResponse:
         try:
             recipe = self.get(recipe_id)
         except ValueError:
@@ -83,6 +101,43 @@ class RecipeEngine:
                 detail="required" if recipe.requires_homing and not state.homed else "ok",
             )
         )
+        calibration_ok = (not recipe.requires_calibration) or bool(calibration and calibration.loaded and state.calibrated)
+        if not calibration_ok:
+            reasons.append("calibration_required")
+        checks.append(
+            ChecklistItem(
+                id="calibration",
+                label="Calibration requirement is satisfied",
+                ok=calibration_ok,
+                detail="required" if not calibration_ok else "ok",
+            )
+        )
+        workspace_ok = (not recipe.requires_verified_workspace) or bool(
+            workspace and workspace.verified_for_real_motion
+        )
+        if not workspace_ok:
+            reasons.append("workspace_not_verified")
+        checks.append(
+            ChecklistItem(
+                id="workspace",
+                label="Workspace requirement is satisfied",
+                ok=workspace_ok,
+                detail="verified" if workspace_ok else "verification_required",
+            )
+        )
+        real_motion_ok = (not recipe.requires_real_motion) or bool(
+            hardware_readiness and hardware_readiness.ready_for_real_motion
+        )
+        if not real_motion_ok:
+            reasons.append("real_motion_locked")
+        checks.append(
+            ChecklistItem(
+                id="real_motion_locked",
+                label="Real motion lock allows this recipe",
+                ok=real_motion_ok,
+                detail="no_real_motion_required" if not recipe.requires_real_motion else "hardware_gate_required",
+            )
+        )
         forbidden_steps: list[str] = []
         for step in recipe.steps:
             step_type = str(step.get("type"))
@@ -121,6 +176,9 @@ class RecipeEngine:
                     description=str(data.get("description", "")),
                     locked=bool(data.get("locked", False)),
                     requires_homing=bool(data.get("requires_homing", True)),
+                    requires_calibration=bool(data.get("requires_calibration", False)),
+                    requires_verified_workspace=bool(data.get("requires_verified_workspace", False)),
+                    requires_real_motion=bool(data.get("requires_real_motion", False)),
                     steps=list(data.get("steps", [])),
                 )
             )

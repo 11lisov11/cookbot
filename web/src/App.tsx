@@ -3,6 +3,7 @@ import {
   Bot,
   Camera,
   CheckCircle2,
+  Download,
   FileText,
   Hand,
   Home,
@@ -15,6 +16,7 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   Sparkles,
+  Upload,
   XCircle
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -124,11 +126,47 @@ type PublicSettings = {
   api_auth_required: boolean;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE || window.location.origin;
+type VersionResponse = {
+  app: "CookBot";
+  backend_version: string;
+  git_commit: string;
+  build_mode: string;
+  api_schema_version: string;
+  hardware_configured: boolean;
+};
+
+type ProductReadinessResponse = {
+  ok: boolean;
+  status: string;
+  items: Array<{ id: string; label: string; ok: boolean; detail: string }>;
+};
+
+type RestoreValidationResponse = {
+  valid: boolean;
+  reasons: string[];
+  accepted_sections: string[];
+  applies_real_motion_settings: boolean;
+};
+
+type TabId = "control" | "recipes" | "diagnostics" | "calibration" | "hardware" | "settings";
+
+const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE || window.location.origin;
+const TABS: Array<{ id: TabId; label: string }> = [
+  { id: "control", label: "Control" },
+  { id: "recipes", label: "Recipes" },
+  { id: "diagnostics", label: "Diagnostics" },
+  { id: "calibration", label: "Calibration" },
+  { id: "hardware", label: "Hardware Gate" },
+  { id: "settings", label: "Settings" }
+];
+
+function currentApiBase() {
+  return localStorage.getItem("cookbot_backend_url") || DEFAULT_API_BASE;
+}
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const token = localStorage.getItem("cookbot_api_token");
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${currentApiBase()}${path}`, {
     headers: {
       "Content-Type": "application/json",
       ...(token ? { "X-CookBot-Token": token } : {}),
@@ -155,14 +193,23 @@ export default function App() {
   const [wizard, setWizard] = useState<CalibrationWizardStatus | null>(null);
   const [acceptance, setAcceptance] = useState<AcceptanceReport | null>(null);
   const [settings, setSettings] = useState<PublicSettings | null>(null);
+  const [version, setVersion] = useState<VersionResponse | null>(null);
+  const [productReadiness, setProductReadiness] = useState<ProductReadinessResponse | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>("control");
+  const [onboarded, setOnboarded] = useState(() => localStorage.getItem("cookbot_onboarded") === "1");
+  const [backendUrl, setBackendUrl] = useState(() => currentApiBase());
   const [apiToken, setApiToken] = useState(() => localStorage.getItem("cookbot_api_token") || "");
+  const [restoreResult, setRestoreResult] = useState<RestoreValidationResponse | null>(null);
   const [axisTargets, setAxisTargets] = useState<Record<string, number>>({});
   const [gripperTarget, setGripperTarget] = useState(0);
   const [aiCommand, setAiCommand] = useState("look at the workspace");
   const [useStream, setUseStream] = useState(true);
   const [message, setMessage] = useState("Connecting to CookBot");
 
-  const wsUrl = useMemo(() => API_BASE.replace(/^http/, "ws") + "/ws/state", []);
+  const wsUrl = useMemo(() => {
+    const suffix = apiToken.trim() ? `?cookbot_token=${encodeURIComponent(apiToken.trim())}` : "";
+    return backendUrl.replace(/^http/, "ws") + `/ws/state${suffix}`;
+  }, [backendUrl, apiToken]);
 
   useEffect(() => {
     refreshAll();
@@ -179,23 +226,37 @@ export default function App() {
 
   async function refreshAll() {
     try {
-      const nextSettings = await api<PublicSettings>("/settings");
+      const [nextSettings, nextVersion] = await Promise.all([
+        api<PublicSettings>("/settings"),
+        api<VersionResponse>("/version")
+      ]);
       const [nextState, nextSnapshot, nextRecipes] = await Promise.all([
         api<SystemState>("/state"),
         api<CameraSnapshot>("/camera/snapshot"),
         api<RecipeSummary[]>("/recipes")
       ]);
-      const [nextRuntime, nextWorkspace, nextDiagnostics, nextLogs, nextReadiness, nextWizard, nextAcceptance] = await Promise.all([
+      const [
+        nextRuntime,
+        nextWorkspace,
+        nextDiagnostics,
+        nextLogs,
+        nextReadiness,
+        nextWizard,
+        nextAcceptance,
+        nextProductReadiness
+      ] = await Promise.all([
         api<RecipeRuntimeStatus>("/recipes/runtime/status"),
         api<WorkspaceModel>("/workspace"),
         api<DiagnosticsResponse>("/diagnostics"),
         api<CommandLogEntry[]>("/logs?limit=8"),
         api<HardwareReadinessResponse>("/hardware/readiness"),
         api<CalibrationWizardStatus>("/calibration/wizard/status"),
-        api<AcceptanceReport>("/acceptance")
+        api<AcceptanceReport>("/acceptance"),
+        api<ProductReadinessResponse>("/product/readiness")
       ]);
       setState(nextState);
       setSettings(nextSettings);
+      setVersion(nextVersion);
       setSnapshot(nextSnapshot);
       setRecipes(nextRecipes);
       setRuntime(nextRuntime);
@@ -205,6 +266,7 @@ export default function App() {
       setHardwareReadiness(nextReadiness);
       setWizard(nextWizard);
       setAcceptance(nextAcceptance);
+      setProductReadiness(nextProductReadiness);
       setAxisTargets((previous) => seedTargets(previous, nextState));
       setGripperTarget(nextState.gripper.position);
       setMessage("CookBot ready in no-hardware mode");
@@ -266,12 +328,22 @@ export default function App() {
   }
 
   function saveApiToken() {
+    const nextBackendUrl = backendUrl.trim() || DEFAULT_API_BASE;
+    localStorage.setItem("cookbot_backend_url", nextBackendUrl);
+    setBackendUrl(nextBackendUrl);
     if (apiToken.trim()) {
       localStorage.setItem("cookbot_api_token", apiToken.trim());
     } else {
       localStorage.removeItem("cookbot_api_token");
     }
     refreshAll();
+  }
+
+  function finishOnboarding() {
+    saveApiToken();
+    localStorage.setItem("cookbot_onboarded", "1");
+    setOnboarded(true);
+    setMessage("First-run setup saved");
   }
 
   async function downloadExport() {
@@ -290,10 +362,48 @@ export default function App() {
     }
   }
 
+  async function downloadBackup() {
+    try {
+      const bundle = await api<Record<string, unknown>>("/backup");
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "cookbot-backup.json";
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setMessage("CookBot backup downloaded");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "CookBot backup failed");
+    }
+  }
+
+  async function validateRestoreFile(file: File | null) {
+    if (!file) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(await file.text());
+      const result = await api<RestoreValidationResponse>("/restore/validate", {
+        method: "POST",
+        body: JSON.stringify(parsed)
+      });
+      setRestoreResult(result);
+      setMessage(result.valid ? "Restore bundle validated" : `Restore rejected: ${result.reasons.join(",")}`);
+    } catch (error) {
+      setRestoreResult({ valid: false, reasons: ["malformed_restore_bundle"], accepted_sections: [], applies_real_motion_settings: false });
+      setMessage(error instanceof Error ? error.message : "Restore validation failed");
+    }
+  }
+
   function cameraStreamUrl() {
     const token = localStorage.getItem("cookbot_api_token");
     const suffix = token ? `?cookbot_token=${encodeURIComponent(token)}` : "";
-    return `${API_BASE}/camera/stream${suffix}`;
+    return `${backendUrl}/camera/stream${suffix}`;
+  }
+
+  function panelClass(tab: TabId, base = "panel") {
+    return activeTab === tab ? base : `${base} hidden`;
   }
 
   return (
@@ -329,8 +439,48 @@ export default function App() {
         <span>{state?.last_error || message}</span>
       </section>
 
+      {!onboarded ? (
+        <section className="panel onboarding">
+          <div className="panel-title">
+            <ShieldAlert size={19} />
+            <h2>First Run</h2>
+          </div>
+          <div className="settings-grid">
+            <div className="diagnostic-item warn">
+              <strong>No-hardware product mode</strong>
+              <span>Simulator, fake Mega, mock camera, and mock AI are expected. Real motion stays locked.</span>
+            </div>
+            <label className="token-field">
+              <span>Backend URL</span>
+              <input value={backendUrl} onChange={(event) => setBackendUrl(event.target.value)} />
+            </label>
+            <label className="token-field">
+              <span>Optional API token</span>
+              <input value={apiToken} onChange={(event) => setApiToken(event.target.value)} type="password" />
+            </label>
+            <button type="button" onClick={finishOnboarding}>
+              <CheckCircle2 size={17} />
+              Start CookBot
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      <nav className="tabbar" aria-label="CookBot sections">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            className={activeTab === tab.id ? "active" : ""}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
       <div className="work-grid">
-        <section className="panel camera-panel">
+        <section className={panelClass("control", "panel camera-panel")}>
           <div className="panel-title">
             <Camera size={19} />
             <h2>Camera</h2>
@@ -350,7 +500,7 @@ export default function App() {
           )}
         </section>
 
-        <section className="panel">
+        <section className={panelClass("control")}>
           <div className="panel-title">
             <SlidersHorizontal size={19} />
             <h2>Manual</h2>
@@ -451,7 +601,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="panel">
+        <section className={panelClass("control")}>
           <div className="panel-title">
             <Sparkles size={19} />
             <h2>AI Check</h2>
@@ -471,7 +621,7 @@ export default function App() {
           </form>
         </section>
 
-        <section className="panel">
+        <section className={panelClass("recipes")}>
           <div className="panel-title">
             <Play size={19} />
             <h2>Recipes</h2>
@@ -516,7 +666,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="panel">
+        <section className={panelClass("diagnostics")}>
           <div className="panel-title">
             <ShieldAlert size={19} />
             <h2>Workspace</h2>
@@ -531,7 +681,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="panel">
+        <section className={panelClass("diagnostics")}>
           <div className="panel-title">
             <ListChecks size={19} />
             <h2>Diagnostics</h2>
@@ -549,7 +699,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="panel">
+        <section className={panelClass("diagnostics")}>
           <div className="panel-title">
             <FileText size={19} />
             <h2>Logs</h2>
@@ -565,7 +715,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="panel">
+        <section className={panelClass("hardware")}>
           <div className="panel-title">
             <ShieldAlert size={19} />
             <h2>Hardware Gate</h2>
@@ -584,7 +734,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="panel">
+        <section className={panelClass("calibration")}>
           <div className="panel-title">
             <ListTodo size={19} />
             <h2>Calibration Wizard</h2>
@@ -606,14 +756,26 @@ export default function App() {
           </div>
         </section>
 
-        <section className="panel">
+        <section className={panelClass("diagnostics")}>
           <div className="panel-title">
             <ListChecks size={19} />
-            <h2>Acceptance</h2>
+            <h2>Product Readiness</h2>
           </div>
           <div className="diagnostic-list">
+            {productReadiness ? (
+              <div className={`diagnostic-item ${productReadiness.ok ? "ok" : "warn"}`}>
+                <strong>{productReadiness.status}</strong>
+                <span>{productReadiness.ok ? "no-hardware product ready" : "checks pending"}</span>
+              </div>
+            ) : null}
+            {productReadiness?.items.map((item) => (
+              <div className={`diagnostic-item ${item.ok ? "ok" : "warn"}`} key={`product-${item.id}`}>
+                <strong>{item.label}</strong>
+                <span>{item.detail}</span>
+              </div>
+            ))}
             {acceptance?.items.map((item) => (
-              <div className={`diagnostic-item ${item.ok ? "ok" : "warn"}`} key={item.id}>
+              <div className={`diagnostic-item ${item.ok ? "ok" : "warn"}`} key={`acceptance-${item.id}`}>
                 <strong>{item.label}</strong>
                 <span>{item.detail}</span>
               </div>
@@ -621,7 +783,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="panel">
+        <section className={panelClass("settings")}>
           <div className="panel-title">
             <FileText size={19} />
             <h2>Settings</h2>
@@ -635,6 +797,14 @@ export default function App() {
               <strong>mode</strong>
               <span>{settings?.mode || "unknown"} / {settings?.mega_transport || "unknown"}</span>
             </div>
+            <div className="diagnostic-item ok">
+              <strong>version</strong>
+              <span>{version?.backend_version || "unknown"} / {version?.git_commit || "unknown"}</span>
+            </div>
+            <label className="token-field">
+              <span>Backend URL</span>
+              <input value={backendUrl} onChange={(event) => setBackendUrl(event.target.value)} />
+            </label>
             <label className="token-field">
               <span>API token</span>
               <input value={apiToken} onChange={(event) => setApiToken(event.target.value)} type="password" />
@@ -649,6 +819,31 @@ export default function App() {
                 Export
               </button>
             </div>
+            <div className="button-row two">
+              <button type="button" onClick={downloadBackup}>
+                <Download size={17} />
+                Backup
+              </button>
+              <label className="file-button">
+                <Upload size={17} />
+                Validate restore
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={(event) => validateRestoreFile(event.target.files?.[0] || null)}
+                />
+              </label>
+            </div>
+            {restoreResult ? (
+              <div className={`diagnostic-item ${restoreResult.valid ? "ok" : "warn"}`}>
+                <strong>{restoreResult.valid ? "restore valid" : "restore rejected"}</strong>
+                <span>
+                  {restoreResult.valid
+                    ? restoreResult.accepted_sections.join(",")
+                    : restoreResult.reasons.join(",")}
+                </span>
+              </div>
+            ) : null}
           </div>
         </section>
       </div>
