@@ -6,6 +6,7 @@ import {
   FileText,
   Hand,
   Home,
+  ListTodo,
   ListChecks,
   Mic,
   Play,
@@ -97,6 +98,21 @@ type HardwareReadinessResponse = {
   items: Array<{ id: string; label: string; verified: boolean; evidence: string | null }>;
 };
 
+type CalibrationWizardStatus = {
+  active: boolean;
+  completed: boolean;
+  current_step: number;
+  total_steps: number;
+  current_step_id: string | null;
+  completed_steps: string[];
+  last_message: string | null;
+};
+
+type AcceptanceReport = {
+  ok: boolean;
+  items: Array<{ id: string; label: string; ok: boolean; detail: string }>;
+};
+
 const API_BASE = import.meta.env.VITE_API_BASE || window.location.origin;
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -120,6 +136,8 @@ export default function App() {
   const [diagnostics, setDiagnostics] = useState<DiagnosticsResponse | null>(null);
   const [logs, setLogs] = useState<CommandLogEntry[]>([]);
   const [hardwareReadiness, setHardwareReadiness] = useState<HardwareReadinessResponse | null>(null);
+  const [wizard, setWizard] = useState<CalibrationWizardStatus | null>(null);
+  const [acceptance, setAcceptance] = useState<AcceptanceReport | null>(null);
   const [axisTargets, setAxisTargets] = useState<Record<string, number>>({});
   const [gripperTarget, setGripperTarget] = useState(0);
   const [aiCommand, setAiCommand] = useState("look at the workspace");
@@ -148,12 +166,14 @@ export default function App() {
         api<CameraSnapshot>("/camera/snapshot"),
         api<RecipeSummary[]>("/recipes")
       ]);
-      const [nextRuntime, nextWorkspace, nextDiagnostics, nextLogs, nextReadiness] = await Promise.all([
+      const [nextRuntime, nextWorkspace, nextDiagnostics, nextLogs, nextReadiness, nextWizard, nextAcceptance] = await Promise.all([
         api<RecipeRuntimeStatus>("/recipes/runtime/status"),
         api<WorkspaceModel>("/workspace"),
         api<DiagnosticsResponse>("/diagnostics"),
         api<CommandLogEntry[]>("/logs?limit=8"),
-        api<HardwareReadinessResponse>("/hardware/readiness")
+        api<HardwareReadinessResponse>("/hardware/readiness"),
+        api<CalibrationWizardStatus>("/calibration/wizard/status"),
+        api<AcceptanceReport>("/acceptance")
       ]);
       setState(nextState);
       setSnapshot(nextSnapshot);
@@ -163,6 +183,8 @@ export default function App() {
       setDiagnostics(nextDiagnostics);
       setLogs(nextLogs);
       setHardwareReadiness(nextReadiness);
+      setWizard(nextWizard);
+      setAcceptance(nextAcceptance);
       setAxisTargets((previous) => seedTargets(previous, nextState));
       setGripperTarget(nextState.gripper.position);
       setMessage("CookBot ready in no-hardware mode");
@@ -177,8 +199,11 @@ export default function App() {
       if (result && typeof result === "object" && "mode" in result) {
         setState(result as SystemState);
       }
-      if (result && typeof result === "object" && "current_step" in result) {
+      if (result && typeof result === "object" && "active_recipe_id" in result) {
         setRuntime(result as RecipeRuntimeStatus);
+      }
+      if (result && typeof result === "object" && "current_step_id" in result) {
+        setWizard(result as CalibrationWizardStatus);
       }
       setMessage(label);
     } catch (error) {
@@ -503,6 +528,43 @@ export default function App() {
               <div className={`diagnostic-item ${item.verified ? "ok" : "warn"}`} key={item.id}>
                 <strong>{item.label}</strong>
                 <span>{item.evidence || "missing evidence"}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-title">
+            <ListTodo size={19} />
+            <h2>Calibration Wizard</h2>
+          </div>
+          <div className="runtime-strip">
+            <span>{wizard?.current_step_id || (wizard?.completed ? "completed" : "idle")}</span>
+            <strong>
+              {wizard?.current_step || 0}/{wizard?.total_steps || 0}
+            </strong>
+            <button className="icon-button" title="Start wizard" onClick={() => runAction("Calibration wizard started", () => api<CalibrationWizardStatus>("/calibration/wizard/start", { method: "POST" }))}>
+              <Play size={16} />
+            </button>
+            <button className="icon-button" title="Advance wizard" onClick={() => runAction("Calibration wizard advanced", () => api<CalibrationWizardStatus>("/calibration/wizard/advance", { method: "POST" }))}>
+              <CheckCircle2 size={16} />
+            </button>
+            <button className="icon-button" title="Reset wizard" onClick={() => runAction("Calibration wizard reset", () => api<CalibrationWizardStatus>("/calibration/wizard/reset", { method: "POST" }))}>
+              <RefreshCw size={16} />
+            </button>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-title">
+            <ListChecks size={19} />
+            <h2>Acceptance</h2>
+          </div>
+          <div className="diagnostic-list">
+            {acceptance?.items.map((item) => (
+              <div className={`diagnostic-item ${item.ok ? "ok" : "warn"}`} key={item.id}>
+                <strong>{item.label}</strong>
+                <span>{item.detail}</span>
               </div>
             ))}
           </div>

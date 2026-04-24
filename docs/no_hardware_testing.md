@@ -30,6 +30,8 @@ The test suite also covers:
 - recipe runtime status, pause, resume, abort;
 - workspace model loading;
 - diagnostics and simulator fault injection;
+- no-hardware acceptance report;
+- calibration wizard flow;
 - OpenAI-compatible client parsing through a mocked HTTP response.
 
 UNO Q service templates:

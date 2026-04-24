@@ -95,6 +95,10 @@ The simulator exposes `joint_1`, `joint_2`, `joint_3`, and `gripper` as safe pla
 - `POST /calibration/simulate`
 - `POST /calibration/save`
 - `POST /calibration/reset`
+- `GET /calibration/wizard/status`
+- `POST /calibration/wizard/start`
+- `POST /calibration/wizard/advance`
+- `POST /calibration/wizard/reset`
 - `POST /joints/{id}/move`
 - `POST /gripper`
 - `POST /ai/command`
@@ -108,6 +112,7 @@ The simulator exposes `joint_1`, `joint_2`, `joint_3`, and `gripper` as safe pla
 - `GET /workspace`
 - `GET /hardware/readiness`
 - `GET /schemas`
+- `GET /acceptance`
 - `GET /logs`
 - `POST /simulator/faults`
 - `DELETE /simulator/faults`
@@ -161,6 +166,12 @@ Invoke-RestMethod http://127.0.0.1:8000/hardware/readiness
 ```
 
 Real motion remains locked until every readiness item in `config/hardware_readiness.yaml` is verified with evidence.
+
+No-hardware acceptance report:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/acceptance
+```
 
 ## OpenAI-Compatible AI Boundary
 

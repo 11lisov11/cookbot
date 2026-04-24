@@ -71,6 +71,8 @@ Current passing checks:
 - `dry_run_stir_demo` runs after homing.
 - `supervised_scrambled_eggs` is locked.
 - `/simulator/faults` injects no-hardware faults.
+- `/acceptance` reports no-hardware software acceptance status.
+- `/calibration/wizard/*` walks through the simulator calibration workflow.
 
 ## Real Hardware Still Required
 
@@ -104,4 +106,3 @@ python -m uvicorn unoq_backend.app:app --host 127.0.0.1 --port 8000
 ```
 
 The current firmware reports capabilities and state, but rejects real `set_joint` and `set_gripper` until `hardware_config.h` is completed from verified hardware data.
-

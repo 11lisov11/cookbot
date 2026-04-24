@@ -6,3 +6,4 @@ def test_schema_endpoint_exposes_core_contracts(client):
     assert "MegaRequest" in body
     assert "AIPlan" in body
     assert "HardwareReadinessResponse" in body
+    assert "AcceptanceReport" in body

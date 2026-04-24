@@ -10,7 +10,6 @@ from fastapi.staticfiles import StaticFiles
 
 from .ai import MockAIClient, OpenAICompatibleClient
 from .camera import LibcameraStillCamera, MockCamera
-from .calibration import CalibrationStore
 from .config import Settings, get_settings
 from .cookbot_logging import CookBotJsonLogger
 from .fake_mega import FakeMegaDevice
@@ -18,9 +17,12 @@ from .models import (
     AICommandRequest,
     AICommandResponse,
     AIPlan,
+    AcceptanceReport,
     CalibrationProfile,
     CalibrationStatus,
+    CalibrationWizardStatus,
     CameraSnapshot,
+    ChecklistItem,
     CommandLogEntry,
     DiagnosticCheck,
     DiagnosticsResponse,
@@ -38,6 +40,7 @@ from .models import (
     SystemState,
     WorkspaceModel,
 )
+from .calibration import CalibrationStore, CalibrationWizard
 from .hardware_readiness import HardwareReadinessStore
 from .recipe_runtime import RecipeRuntime
 from .recipes import RecipeEngine
@@ -59,6 +62,7 @@ class CookBotController:
         self.recipes = RecipeEngine(settings.recipes_dir)
         self.recipe_runtime = RecipeRuntime()
         self.calibration = CalibrationStore(settings.calibration_path)
+        self.calibration_wizard = CalibrationWizard()
         self.workspace = WorkspaceStore(settings.workspace_path)
         self.hardware_readiness = HardwareReadinessStore(settings.hardware_readiness_path)
         self.logger = CookBotJsonLogger(settings.log_path)
@@ -212,6 +216,30 @@ class CookBotController:
         self.logger.event("backend", "calibration_reset", path=str(self.settings.calibration_path))
         return await self.calibration_status()
 
+    def calibration_wizard_status(self) -> CalibrationWizardStatus:
+        return self.calibration_wizard.status()
+
+    def calibration_wizard_start(self) -> CalibrationWizardStatus:
+        self.logger.event("backend", "calibration_wizard_start")
+        return self.calibration_wizard.start()
+
+    async def calibration_wizard_advance(self) -> CalibrationWizardStatus:
+        status = self.calibration_wizard.status()
+        step_id = status.current_step_id
+        if step_id == "home_simulator":
+            await self.home()
+        elif step_id == "mark_simulated_calibration":
+            await self.mark_simulated_calibration()
+        elif step_id == "save_profile":
+            await self.calibration_save()
+        advanced = self.calibration_wizard.advance()
+        self.logger.event("backend", "calibration_wizard_advance", command_id=step_id)
+        return advanced
+
+    def calibration_wizard_reset(self) -> CalibrationWizardStatus:
+        self.logger.event("backend", "calibration_wizard_reset")
+        return self.calibration_wizard.reset()
+
     async def move_joint(self, joint_id: str, request: JointMoveRequest) -> SystemState:
         state = await self.state()
         self.safety.validate_joint_move(state, joint_id, request.position, request.speed)
@@ -339,6 +367,52 @@ class CookBotController:
     def hardware_readiness_model(self) -> HardwareReadinessResponse:
         return self.hardware_readiness.load()
 
+    async def acceptance_report(self) -> AcceptanceReport:
+        state = await self.state()
+        diagnostics = await self.diagnostics()
+        recipes = self.list_recipes()
+        readiness = self.hardware_readiness_model()
+        items = [
+            ChecklistItem(id="backend", label="Backend responds", ok=True, detail="ok"),
+            ChecklistItem(
+                id="no_hardware_mode",
+                label="No-hardware mode is active",
+                ok=self.settings.mode == "simulator" and self.settings.mega_transport.startswith("fake"),
+                detail=f"{self.settings.mode}/{self.settings.mega_transport}",
+            ),
+            ChecklistItem(
+                id="diagnostics",
+                label="Diagnostics pass",
+                ok=diagnostics.ok,
+                detail="ok" if diagnostics.ok else "diagnostics_failed",
+            ),
+            ChecklistItem(
+                id="camera",
+                label="Camera boundary is available",
+                ok=state.services.get("camera") in {"mock", "libcamera"},
+                detail=state.services.get("camera", "unknown"),
+            ),
+            ChecklistItem(
+                id="ai",
+                label="AI boundary is available",
+                ok=state.services.get("ai") in {"mock", "openai_compatible"},
+                detail=state.services.get("ai", "unknown"),
+            ),
+            ChecklistItem(
+                id="recipes",
+                label="Recipes are loaded",
+                ok=bool(recipes),
+                detail=f"{len(recipes)} recipes",
+            ),
+            ChecklistItem(
+                id="real_motion_locked",
+                label="Real motion is locked until hardware readiness",
+                ok=not readiness.ready_for_real_motion,
+                detail="locked",
+            ),
+        ]
+        return AcceptanceReport(ok=all(item.ok for item in items), items=items)
+
     def schemas(self) -> dict[str, Any]:
         return {
             "SystemState": SystemState.model_json_schema(),
@@ -347,6 +421,7 @@ class CookBotController:
             "AIPlan": AIPlan.model_json_schema(),
             "HardwareReadinessResponse": HardwareReadinessResponse.model_json_schema(),
             "WorkspaceModel": WorkspaceModel.model_json_schema(),
+            "AcceptanceReport": AcceptanceReport.model_json_schema(),
         }
 
     async def _execute_recipe_step(self, step: dict[str, Any]) -> None:
@@ -448,6 +523,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def calibration_status() -> CalibrationStatus:
         return await controller.calibration_status()
 
+    @app.get("/calibration/wizard/status", response_model=CalibrationWizardStatus)
+    async def calibration_wizard_status() -> CalibrationWizardStatus:
+        return controller.calibration_wizard_status()
+
+    @app.post("/calibration/wizard/start", response_model=CalibrationWizardStatus)
+    async def calibration_wizard_start() -> CalibrationWizardStatus:
+        return controller.calibration_wizard_start()
+
+    @app.post("/calibration/wizard/advance", response_model=CalibrationWizardStatus)
+    async def calibration_wizard_advance() -> CalibrationWizardStatus:
+        return await controller.calibration_wizard_advance()
+
+    @app.post("/calibration/wizard/reset", response_model=CalibrationWizardStatus)
+    async def calibration_wizard_reset() -> CalibrationWizardStatus:
+        return controller.calibration_wizard_reset()
+
     @app.post("/calibration/save", response_model=CalibrationProfile)
     async def calibration_save() -> CalibrationProfile:
         return await controller.calibration_save()
@@ -507,6 +598,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/hardware/readiness", response_model=HardwareReadinessResponse)
     async def hardware_readiness() -> HardwareReadinessResponse:
         return controller.hardware_readiness_model()
+
+    @app.get("/acceptance", response_model=AcceptanceReport)
+    async def acceptance() -> AcceptanceReport:
+        return await controller.acceptance_report()
 
     @app.get("/schemas")
     async def schemas() -> dict[str, Any]:

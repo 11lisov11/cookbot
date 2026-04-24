@@ -16,6 +16,15 @@ Calibration persistence endpoints:
 
 The saved file defaults to `config/calibration.json`. It stores simulator axis ranges and calibration flags only.
 
+No-hardware calibration wizard endpoints:
+
+- `GET /calibration/wizard/status`
+- `POST /calibration/wizard/start`
+- `POST /calibration/wizard/advance`
+- `POST /calibration/wizard/reset`
+
+The wizard walks through ESTOP confirmation, external power confirmation, no-real-motion confirmation, simulator homing, simulated calibration, and saving the simulator profile. It does not prove real hardware calibration.
+
 Real calibration must record:
 
 - verified axis names;

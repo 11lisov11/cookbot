@@ -51,6 +51,8 @@ def main() -> None:
     assert readiness["ready_for_real_motion"] is False
     schemas = request("/schemas")
     assert "SystemState" in schemas
+    acceptance = request("/acceptance")
+    assert acceptance["ok"] is True
     snapshot = request("/camera/snapshot")
     assert snapshot["data_url"].startswith("data:image/svg+xml;base64,")
     calibration = request("/calibration/status")

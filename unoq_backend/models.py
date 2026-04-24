@@ -118,6 +118,13 @@ class DiagnosticCheck(BaseModel):
     detail: str
 
 
+class ChecklistItem(BaseModel):
+    id: str
+    label: str
+    ok: bool
+    detail: str = ""
+
+
 class DiagnosticsResponse(BaseModel):
     ok: bool
     checks: list[DiagnosticCheck]
@@ -165,6 +172,7 @@ class RecipePreflightResponse(BaseModel):
     recipe_id: str
     ok: bool
     reasons: list[str] = Field(default_factory=list)
+    checks: list[ChecklistItem] = Field(default_factory=list)
 
 
 class RecipeRunResponse(BaseModel):
@@ -218,3 +226,19 @@ class HardwareReadinessResponse(BaseModel):
     project: Literal["CookBot"] = "CookBot"
     ready_for_real_motion: bool = False
     items: list[HardwareReadinessItem] = Field(default_factory=list)
+
+
+class CalibrationWizardStatus(BaseModel):
+    active: bool = False
+    completed: bool = False
+    current_step: int = 0
+    total_steps: int = 0
+    current_step_id: str | None = None
+    completed_steps: list[str] = Field(default_factory=list)
+    last_message: str | None = None
+
+
+class AcceptanceReport(BaseModel):
+    project: Literal["CookBot"] = "CookBot"
+    ok: bool
+    items: list[ChecklistItem] = Field(default_factory=list)
