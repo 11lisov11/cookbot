@@ -1,0 +1,9 @@
+id: supervised_scrambled_eggs
+name: Supervised Scrambled Eggs
+description: Locked placeholder until heating, food safety, workspace, and hardware checks exist.
+locked: true
+requires_homing: true
+steps:
+  - type: recipe_note
+    text: This recipe is intentionally locked in the no-hardware MVP.
+

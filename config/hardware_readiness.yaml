@@ -1,0 +1,35 @@
+project: CookBot
+ready_for_real_motion: false
+items:
+  - id: pin_map
+    label: Mega pin map verified
+    verified: false
+    evidence: null
+  - id: driver_types
+    label: Motor/servo driver types identified
+    verified: false
+    evidence: null
+  - id: limit_polarity
+    label: Limit switch polarity verified
+    verified: false
+    evidence: null
+  - id: external_power
+    label: External motor power and common ground verified
+    verified: false
+    evidence: null
+  - id: estop
+    label: Hardware ESTOP verified
+    verified: false
+    evidence: null
+  - id: axis_limits
+    label: Axis min/max limits measured
+    verified: false
+    evidence: null
+  - id: homing_direction
+    label: Safe homing direction verified for each axis
+    verified: false
+    evidence: null
+  - id: low_power_test
+    label: Low-power motion test completed
+    verified: false
+    evidence: null

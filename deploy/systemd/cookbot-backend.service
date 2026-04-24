@@ -1,0 +1,20 @@
+[Unit]
+Description=CookBot backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/cookbot
+Environment=COOKBOT_MODE=simulator
+Environment=COOKBOT_MEGA_TRANSPORT=fake
+Environment=COOKBOT_CAMERA=mock
+Environment=COOKBOT_AI=mock
+Environment=COOKBOT_BIND=127.0.0.1
+ExecStart=/usr/bin/python3 -m uvicorn unoq_backend.app:app --host ${COOKBOT_BIND} --port 8000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+

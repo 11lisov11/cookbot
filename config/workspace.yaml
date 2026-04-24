@@ -1,0 +1,18 @@
+project: CookBot
+verified_for_real_motion: false
+zones:
+  - id: home
+    name: Simulated Home
+    kind: safe
+    description: Simulator-only neutral position.
+    verified: false
+  - id: pan_area
+    name: Pan Area Placeholder
+    kind: vessel
+    description: Placeholder zone; real pan geometry is not verified.
+    verified: false
+  - id: keepout_human
+    name: Human Keepout Placeholder
+    kind: keepout
+    description: Placeholder keepout zone until real workspace is measured.
+    verified: false

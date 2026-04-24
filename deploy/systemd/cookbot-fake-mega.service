@@ -1,0 +1,17 @@
+[Unit]
+Description=CookBot fake Mega
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/cookbot
+Environment=COOKBOT_FAKE_MEGA_HOST=127.0.0.1
+Environment=COOKBOT_FAKE_MEGA_PORT=8765
+ExecStart=/usr/bin/python3 -m unoq_backend.fake_mega
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+

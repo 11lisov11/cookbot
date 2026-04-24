@@ -1,0 +1,21 @@
+id: dry_run_stir_demo
+name: Dry Run Stir Demo
+description: No-heat supervised motion demo for simulator and fake Mega validation.
+locked: false
+requires_homing: true
+steps:
+  - type: recipe_note
+    text: Demo starts only after CookBot is homed.
+  - type: move_joint
+    joint_id: joint_1
+    position: 10.0
+    speed: 0.25
+  - type: wait
+    seconds: 0.05
+  - type: move_joint
+    joint_id: joint_1
+    position: -10.0
+    speed: 0.25
+  - type: set_gripper
+    position: 0.4
+
