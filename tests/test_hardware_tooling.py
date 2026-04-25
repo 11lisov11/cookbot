@@ -1,7 +1,11 @@
 import os
+import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,3 +55,45 @@ def test_commissioning_and_deploy_dry_runs_do_not_touch_hardware():
     commissioning = run_tool("commissioning-check", "--dry-run")
     assert commissioning.returncode == 0
     assert "commissioning sequence" in commissioning.stdout
+
+
+def test_hardware_doctor_dry_run_reports_lock_and_mock_connections():
+    result = run_tool(
+        "hardware-doctor",
+        "--dry-run",
+        "--json",
+        env={
+            "COOKBOT_DRY_ADB_DEVICES": "unoq-dry-run",
+            "COOKBOT_DRY_SERIAL_PORTS": "COM5",
+            "COOKBOT_DRY_ARDUINO_BOARDS": "Arduino Mega",
+        },
+    )
+    assert result.returncode == 0
+    body = json.loads(result.stdout)
+    assert body["real_motion_locked"] is True
+    assert body["ready_for_real_motion"] is False
+    assert "unoq-dry-run" in body["adb_devices"]
+    assert "COM5" in body["serial_ports"]
+
+
+def test_hardware_doctor_wrapper_dry_run_is_non_destructive():
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
+    if not powershell:
+        pytest.skip("PowerShell is not available")
+    result = subprocess.run(
+        [
+            powershell,
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(ROOT / "scripts" / "hardware_doctor.ps1"),
+            "--dry-run",
+            "--json",
+        ],
+        cwd=ROOT,
+        env={**os.environ.copy(), "COOKBOT_DRY_ADB_DEVICES": ""},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "real_motion_locked" in result.stdout

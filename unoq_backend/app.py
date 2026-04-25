@@ -25,6 +25,8 @@ from .models import (
     CalibrationWizardStatus,
     CameraSnapshot,
     ChecklistItem,
+    CommissioningCommand,
+    CommissioningGuideResponse,
     CommandLogEntry,
     DiagnosticCheck,
     DiagnosticsResponse,
@@ -66,6 +68,7 @@ REQUIRED_PRODUCT_DOCS = [
     Path("docs/release_checklist.md"),
     Path("docs/mega_protocol.md"),
     Path("docs/hardware_automation.md"),
+    Path("docs/commissioning_runbook.md"),
     Path("docs/safety.md"),
     Path("docs/no_hardware_testing.md"),
     Path("RELEASE_NOTES.md"),
@@ -638,6 +641,98 @@ class CookBotController:
             items=items,
         )
 
+    def commissioning_guide(self) -> CommissioningGuideResponse:
+        return CommissioningGuideResponse(
+            steps=[
+                ChecklistItem(
+                    id="local_doctor",
+                    label="Run local hardware doctor",
+                    ok=True,
+                    detail="Reports tools, ADB devices, Arduino boards, serial ports, and backend readiness.",
+                ),
+                ChecklistItem(
+                    id="unoq_adb",
+                    label="Verify UNO Q ADB",
+                    ok=True,
+                    detail="Stops on old root-ADB image behavior and does not deploy until ADB is healthy.",
+                ),
+                ChecklistItem(
+                    id="mega_locked_build",
+                    label="Build locked Mega firmware",
+                    ok=True,
+                    detail="Default firmware keeps COOKBOT_HARDWARE_CONFIGURED=0 and rejects motion.",
+                ),
+                ChecklistItem(
+                    id="explicit_upload_port",
+                    label="Choose explicit Mega upload port",
+                    ok=True,
+                    detail="Upload scripts never auto-select a serial port.",
+                ),
+                ChecklistItem(
+                    id="serial_self_test",
+                    label="Probe Mega JSON protocol",
+                    ok=True,
+                    detail="Probe uses hello, get_firmware_status, self_test, and read_inputs only.",
+                ),
+                ChecklistItem(
+                    id="bench_only",
+                    label="Keep bench outputs isolated",
+                    ok=True,
+                    detail="Bench pulses require bench firmware, BENCH_ONLY unlock, clear ESTOP, explicit pin, and short duration.",
+                ),
+            ],
+            commands=[
+                CommissioningCommand(
+                    id="doctor_windows",
+                    label="Hardware doctor (Windows)",
+                    command="powershell -ExecutionPolicy Bypass -File scripts\\hardware_doctor.ps1 --backend-url http://127.0.0.1:8000",
+                    description="Local report for tools, ADB, serial ports, Arduino board list, and product readiness.",
+                ),
+                CommissioningCommand(
+                    id="doctor_linux",
+                    label="Hardware doctor (Linux/UNO Q)",
+                    command="bash scripts/hardware_doctor.sh --backend-url http://127.0.0.1:8000",
+                    description="Same report for UNO Q/Linux shell.",
+                ),
+                CommissioningCommand(
+                    id="adb_check",
+                    label="UNO Q ADB check",
+                    command="powershell -ExecutionPolicy Bypass -File scripts\\unoq_adb_check.ps1",
+                    description="Verifies connected UNO Q Linux side before deployment.",
+                ),
+                CommissioningCommand(
+                    id="adb_deploy",
+                    label="UNO Q deploy",
+                    command="powershell -ExecutionPolicy Bypass -File scripts\\unoq_adb_deploy.ps1 --target /home/arduino/cookbot",
+                    description="Pushes tracked project files and restarts the user systemd backend service.",
+                ),
+                CommissioningCommand(
+                    id="mega_build",
+                    label="Mega locked build",
+                    command="python -m platformio run -e cookbot_mega2560",
+                    description="Builds the default no-motion firmware for Arduino Mega 2560.",
+                ),
+                CommissioningCommand(
+                    id="mega_upload",
+                    label="Mega upload with explicit port",
+                    command="powershell -ExecutionPolicy Bypass -File scripts\\mega_platformio_upload.ps1 --port COM5",
+                    description="Replace COM5 with the verified Mega port; the script will not guess.",
+                ),
+                CommissioningCommand(
+                    id="serial_probe",
+                    label="Mega serial probe",
+                    command="powershell -ExecutionPolicy Bypass -File scripts\\mega_serial_probe.ps1 --port COM5",
+                    description="Protocol-only self-test; no motion commands are sent.",
+                ),
+                CommissioningCommand(
+                    id="commissioning_dry_run",
+                    label="Commissioning dry-run",
+                    command="powershell -ExecutionPolicy Bypass -File scripts\\commissioning_check.ps1 --dry-run",
+                    description="Prints the full sequence without touching hardware.",
+                ),
+            ],
+        )
+
     def schemas(self) -> dict[str, Any]:
         return {
             "SystemState": SystemState.model_json_schema(),
@@ -651,6 +746,7 @@ class CookBotController:
             "BackupBundle": BackupBundle.model_json_schema(),
             "RestoreValidationResponse": RestoreValidationResponse.model_json_schema(),
             "ProductReadinessResponse": ProductReadinessResponse.model_json_schema(),
+            "CommissioningGuideResponse": CommissioningGuideResponse.model_json_schema(),
             "VersionResponse": VersionResponse.model_json_schema(),
             "ErrorTaxonomy": ERROR_TAXONOMY,
             "MegaProtocolCommands": MEGA_PROTOCOL_COMMANDS,
@@ -856,6 +952,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/product/readiness", response_model=ProductReadinessResponse)
     async def product_readiness() -> ProductReadinessResponse:
         return await controller.product_readiness()
+
+    @app.get("/commissioning/guide", response_model=CommissioningGuideResponse)
+    async def commissioning_guide() -> CommissioningGuideResponse:
+        return controller.commissioning_guide()
 
     @app.get("/export", response_model=ExportBundle)
     async def export_bundle() -> ExportBundle:

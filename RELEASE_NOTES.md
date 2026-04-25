@@ -16,4 +16,5 @@ Real cooking, heating, knife handling, relay control, and real motor movement ar
 - Added PlatformIO/VS Code workflow for Arduino Mega 2560 locked firmware and bench-only diagnostic builds.
 - Added ADB scripts for UNO Q Linux-side check, deploy, logs, and commissioning dry-runs.
 - Extended Mega protocol with firmware status, input readback, and compile-time-locked bench output commands.
+- Added hardware doctor scripts plus backend/PWA commissioning guide for local toolchain, ADB, serial, PlatformIO, and backend readiness reporting.
 - Real motion remains blocked until verified hardware readiness evidence is complete.

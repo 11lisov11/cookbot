@@ -32,6 +32,18 @@
       "type": "shell",
       "command": "powershell -ExecutionPolicy Bypass -File scripts/unoq_adb_check.ps1",
       "problemMatcher": []
+    },
+    {
+      "label": "CookBot: Hardware doctor",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File scripts/hardware_doctor.ps1 --backend-url http://127.0.0.1:8000",
+      "problemMatcher": []
+    },
+    {
+      "label": "CookBot: Commissioning dry-run",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File scripts/commissioning_check.ps1 --dry-run",
+      "problemMatcher": []
     }
   ],
   "inputs": [

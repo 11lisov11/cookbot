@@ -65,6 +65,7 @@ Detailed startup docs:
 - `docs/no_hardware_testing.md`
 - `docs/mega_protocol.md`
 - `docs/hardware_automation.md`
+- `docs/commissioning_runbook.md`
 
 ## Fake Mega
 
@@ -126,6 +127,7 @@ The simulator exposes `joint_1`, `joint_2`, `joint_3`, and `gripper` as safe pla
 - `GET /schemas`
 - `GET /acceptance`
 - `GET /product/readiness`
+- `GET /commissioning/guide`
 - `GET /export`
 - `GET /backup`
 - `POST /restore/validate`
@@ -150,6 +152,12 @@ pio run -e cookbot_mega2560_bench
 ```
 
 The sketch intentionally rejects real motion until the pin map, drivers, limits, and hardware safety wiring are verified.
+
+Before connecting boards, run the local hardware doctor:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/hardware_doctor.ps1 --backend-url http://127.0.0.1:8000
+```
 
 Upload through PlatformIO requires an explicit serial port:
 

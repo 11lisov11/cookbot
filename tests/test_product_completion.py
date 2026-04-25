@@ -44,6 +44,15 @@ def test_version_backup_restore_and_product_readiness(client):
     assert readiness.json()["ok"] is True
     assert readiness.json()["status"] == "no_hardware_product_ready"
 
+    guide = client.get("/commissioning/guide")
+    assert guide.status_code == 200
+    guide_body = guide.json()
+    assert guide_body["real_motion_locked"] is True
+    assert guide_body["ready_for_real_motion"] is False
+    commands = {item["id"]: item["command"] for item in guide_body["commands"]}
+    assert "hardware_doctor.ps1" in commands["doctor_windows"]
+    assert "mega_platformio_upload.ps1 --port COM5" in commands["mega_upload"]
+
 
 def test_new_demo_recipes_preflight_and_run(client):
     listed = client.get("/recipes")
@@ -89,12 +98,14 @@ def test_optional_api_token_protects_product_endpoints(tmp_path: Path):
     assert client.get("/version").status_code == 401
     assert client.get("/backup").status_code == 401
     assert client.get("/product/readiness").status_code == 401
+    assert client.get("/commissioning/guide").status_code == 401
     assert client.post("/restore/validate", json={}).status_code == 401
 
     headers = {"X-CookBot-Token": "secret"}
     assert client.get("/version", headers=headers).status_code == 200
     assert client.get("/backup", headers=headers).status_code == 200
     assert client.get("/product/readiness", headers=headers).status_code == 200
+    assert client.get("/commissioning/guide", headers=headers).status_code == 200
     restore = client.post("/restore/validate", json={}, headers=headers)
     assert restore.status_code == 200
     assert restore.json()["valid"] is False

@@ -141,6 +141,14 @@ type ProductReadinessResponse = {
   items: Array<{ id: string; label: string; ok: boolean; detail: string }>;
 };
 
+type CommissioningGuideResponse = {
+  ok: boolean;
+  real_motion_locked: boolean;
+  ready_for_real_motion: boolean;
+  steps: Array<{ id: string; label: string; ok: boolean; detail: string }>;
+  commands: Array<{ id: string; label: string; command: string; description: string }>;
+};
+
 type RestoreValidationResponse = {
   valid: boolean;
   reasons: string[];
@@ -195,6 +203,7 @@ export default function App() {
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [version, setVersion] = useState<VersionResponse | null>(null);
   const [productReadiness, setProductReadiness] = useState<ProductReadinessResponse | null>(null);
+  const [commissioningGuide, setCommissioningGuide] = useState<CommissioningGuideResponse | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("control");
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem("cookbot_onboarded") === "1");
   const [backendUrl, setBackendUrl] = useState(() => currentApiBase());
@@ -243,7 +252,8 @@ export default function App() {
         nextReadiness,
         nextWizard,
         nextAcceptance,
-        nextProductReadiness
+        nextProductReadiness,
+        nextCommissioningGuide
       ] = await Promise.all([
         api<RecipeRuntimeStatus>("/recipes/runtime/status"),
         api<WorkspaceModel>("/workspace"),
@@ -252,7 +262,8 @@ export default function App() {
         api<HardwareReadinessResponse>("/hardware/readiness"),
         api<CalibrationWizardStatus>("/calibration/wizard/status"),
         api<AcceptanceReport>("/acceptance"),
-        api<ProductReadinessResponse>("/product/readiness")
+        api<ProductReadinessResponse>("/product/readiness"),
+        api<CommissioningGuideResponse>("/commissioning/guide")
       ]);
       setState(nextState);
       setSettings(nextSettings);
@@ -267,6 +278,7 @@ export default function App() {
       setWizard(nextWizard);
       setAcceptance(nextAcceptance);
       setProductReadiness(nextProductReadiness);
+      setCommissioningGuide(nextCommissioningGuide);
       setAxisTargets((previous) => seedTargets(previous, nextState));
       setGripperTarget(nextState.gripper.position);
       setMessage("CookBot ready in no-hardware mode");
@@ -742,6 +754,23 @@ export default function App() {
               <strong>bench mode</strong>
               <span>Compile with cookbot_mega2560_bench, unlock with BENCH_ONLY, pulse one explicit pin, then lock again.</span>
             </div>
+            <div className={`diagnostic-item ${commissioningGuide?.real_motion_locked ? "ok" : "warn"}`}>
+              <strong>commissioning guide</strong>
+              <span>{commissioningGuide?.real_motion_locked ? "real motion locked; scripts only" : "guide unavailable"}</span>
+            </div>
+            {commissioningGuide?.steps.map((item) => (
+              <div className={`diagnostic-item ${item.ok ? "ok" : "warn"}`} key={`commissioning-${item.id}`}>
+                <strong>{item.label}</strong>
+                <span>{item.detail}</span>
+              </div>
+            ))}
+            {commissioningGuide?.commands.map((item) => (
+              <div className="command-item" key={`command-${item.id}`}>
+                <strong>{item.label}</strong>
+                <code>{item.command}</code>
+                <span>{item.description}</span>
+              </div>
+            ))}
             <div className={`diagnostic-item ${hardwareReadiness?.ready_for_real_motion ? "ok" : "warn"}`}>
               <strong>{hardwareReadiness?.ready_for_real_motion ? "real motion ready" : "real motion locked"}</strong>
               <span>{hardwareReadiness?.items.filter((item) => item.verified).length || 0}/{hardwareReadiness?.items.length || 0} checks verified</span>

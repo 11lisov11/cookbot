@@ -302,3 +302,19 @@ class ProductReadinessResponse(BaseModel):
     diagnostics: DiagnosticsResponse
     hardware_readiness: HardwareReadinessResponse
     items: list[ChecklistItem] = Field(default_factory=list)
+
+
+class CommissioningCommand(BaseModel):
+    id: str
+    label: str
+    command: str
+    description: str = ""
+
+
+class CommissioningGuideResponse(BaseModel):
+    project: Literal["CookBot"] = "CookBot"
+    ok: bool = True
+    real_motion_locked: bool = True
+    ready_for_real_motion: bool = False
+    steps: list[ChecklistItem] = Field(default_factory=list)
+    commands: list[CommissioningCommand] = Field(default_factory=list)

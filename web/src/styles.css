@@ -322,6 +322,7 @@ input[type="range"] {
 
 .zone-item,
 .diagnostic-item,
+.command-item,
 .log-item,
 .empty-list {
   border: 1px solid #303a40;
@@ -332,8 +333,31 @@ input[type="range"] {
 
 .zone-item strong,
 .diagnostic-item strong,
+.command-item strong,
 .log-item strong {
   display: block;
+  overflow-wrap: anywhere;
+}
+
+.command-item {
+  display: grid;
+  gap: 6px;
+}
+
+.command-item code {
+  display: block;
+  border: 1px solid #3e484d;
+  border-radius: 8px;
+  padding: 8px;
+  background: #0f1112;
+  color: #dce8eb;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.command-item span {
+  color: #aab4b9;
   overflow-wrap: anywhere;
 }
 

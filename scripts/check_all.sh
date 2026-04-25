@@ -46,6 +46,7 @@ else
 fi
 
 echo "CookBot: hardware automation dry-runs"
+python scripts/hardware_tooling.py hardware-doctor --dry-run --json
 python scripts/hardware_tooling.py unoq-adb-deploy --dry-run
 python scripts/hardware_tooling.py unoq-adb-logs --dry-run
 python scripts/hardware_tooling.py mega-platformio-upload --dry-run --port DRY_RUN_PORT

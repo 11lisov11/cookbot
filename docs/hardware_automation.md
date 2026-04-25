@@ -2,6 +2,22 @@
 
 CookBot hardware automation is split into safe host-side scripts. Browser UI shows status and instructions only; it does not flash boards or run ADB.
 
+## Hardware Doctor
+
+Run this first to see local toolchain, ADB, serial ports, Arduino board list, project artifacts, and optional backend readiness:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/hardware_doctor.ps1 --backend-url http://127.0.0.1:8000
+```
+
+Linux/UNO Q:
+
+```bash
+bash scripts/hardware_doctor.sh --backend-url http://127.0.0.1:8000
+```
+
+The doctor reports missing physical devices without unlocking motion. `ready_for_real_motion` must remain `false`.
+
 ## PlatformIO Mega Workflow
 
 Build locked firmware:

@@ -14,6 +14,7 @@ def test_schema_endpoint_exposes_core_contracts(client):
     assert "BackupBundle" in body
     assert "RestoreValidationResponse" in body
     assert "ProductReadinessResponse" in body
+    assert "CommissioningGuideResponse" in body
     assert "VersionResponse" in body
     assert "ErrorTaxonomy" in body
     assert "MegaProtocolCommands" in body
@@ -23,5 +24,8 @@ def test_schema_endpoint_exposes_core_contracts(client):
 def test_hardware_protocol_and_automation_docs_exist():
     assert Path("docs/mega_protocol.md").exists()
     assert Path("docs/hardware_automation.md").exists()
+    assert Path("docs/commissioning_runbook.md").exists()
     assert Path("platformio.ini").exists()
     assert Path(".vscode/tasks.json").exists()
+    assert Path("scripts/hardware_doctor.ps1").exists()
+    assert Path("scripts/hardware_doctor.sh").exists()
