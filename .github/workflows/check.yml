@@ -53,3 +53,9 @@ jobs:
           arduino-cli core update-index
           arduino-cli core install arduino:avr
           arduino-cli compile --fqbn arduino:avr:mega mega_firmware/cookbot_mega_firmware
+          arduino-cli compile --fqbn arduino:avr:mega --build-property "build.extra_flags=-DCOOKBOT_BENCH_OUTPUTS_ENABLED=1" mega_firmware/cookbot_mega_firmware
+
+      - name: PlatformIO Mega compile
+        run: |
+          python -m platformio run -e cookbot_mega2560
+          python -m platformio run -e cookbot_mega2560_bench

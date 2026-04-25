@@ -14,6 +14,7 @@ SAFE_SIMULATED_AXES = [
 class CookBotSimulator:
     def __init__(self, mode: str = "simulator"):
         self._faults: dict[str, str] = {}
+        self._bench_unlocked = False
         self._state = SystemState(
             mode=mode,
             services={
@@ -121,6 +122,7 @@ class CookBotSimulator:
         self._state.motion_enabled = False
         self._state.queue_depth = 0
         self._state.last_error = code
+        self._bench_unlocked = False
         if joint_id:
             axis = self._axis(joint_id)
             if "min" in code:
@@ -151,6 +153,7 @@ class CookBotSimulator:
             "version": "0.1.0",
             "hardware_configured": False,
             "motion_commands_enabled": True,
+            "bench_outputs_enabled": False,
             "supported_commands": [
                 "hello",
                 "ping",
@@ -159,6 +162,10 @@ class CookBotSimulator:
                 "get_hardware_config",
                 "get_limit_switches",
                 "self_test",
+                "get_firmware_status",
+                "read_inputs",
+                "bench_unlock",
+                "bench_test_output",
                 "get_faults",
                 "inject_fault",
                 "clear_faults",
@@ -174,6 +181,7 @@ class CookBotSimulator:
     def hardware_config(self) -> dict[str, Any]:
         return {
             "hardware_configured": False,
+            "bench_outputs_enabled": False,
             "axis_count": 0,
             "limit_switch_count": 0,
             "estop_pin": -1,
@@ -189,13 +197,47 @@ class CookBotSimulator:
         return {
             "ok": True,
             "hardware_configured": False,
+            "bench_outputs_enabled": False,
             "motion_outputs_enabled": False,
             "checks": [
                 {"id": "backend_simulator", "ok": True},
                 {"id": "hardware_config", "ok": True, "detail": "placeholder"},
                 {"id": "motion_outputs", "ok": True, "detail": "fake_transport_only"},
+                {"id": "bench_outputs", "ok": True, "detail": "disabled"},
             ],
         }
+
+    def firmware_status(self) -> dict[str, Any]:
+        return {
+            "firmware": "cookbot-fake-mega",
+            "version": "0.1.0",
+            "hardware_configured": False,
+            "bench_outputs_enabled": False,
+            "bench_unlocked": self._bench_unlocked,
+            "estop": self._state.estop,
+            "motion_enabled": self._state.motion_enabled,
+            "watchdog_timeout_ms": 1500,
+        }
+
+    def read_inputs(self) -> dict[str, Any]:
+        return {
+            "estop_pin": -1,
+            "estop_active": self._state.estop,
+            "limit_switches": [],
+        }
+
+    def bench_unlock(self, confirm: str | None) -> dict[str, Any]:
+        if self._state.estop:
+            raise ValueError("estop_active")
+        if confirm != "BENCH_ONLY":
+            raise ValueError("bench_confirm_required")
+        raise ValueError("bench_outputs_disabled")
+
+    def bench_test_output(self, pin: int | None, duration_ms: int | None) -> dict[str, Any]:
+        if self._state.estop:
+            self._bench_unlocked = False
+            raise ValueError("estop_active")
+        raise ValueError("bench_outputs_disabled")
 
     def _axis(self, joint_id: str) -> AxisState:
         for axis in self._state.axes:

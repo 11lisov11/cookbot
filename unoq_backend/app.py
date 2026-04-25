@@ -64,6 +64,8 @@ REQUIRED_PRODUCT_DOCS = [
     Path("docs/mobile_use.md"),
     Path("docs/troubleshooting.md"),
     Path("docs/release_checklist.md"),
+    Path("docs/mega_protocol.md"),
+    Path("docs/hardware_automation.md"),
     Path("docs/safety.md"),
     Path("docs/no_hardware_testing.md"),
     Path("RELEASE_NOTES.md"),
@@ -77,6 +79,29 @@ ERROR_TAXONOMY = {
     "recipe_error": ["unknown_recipe", "recipe_locked", "forbidden_recipe_step"],
     "config_error": ["config_error", "workspace_not_verified", "calibration_required"],
 }
+
+MEGA_PROTOCOL_COMMANDS = [
+    "hello",
+    "ping",
+    "get_state",
+    "get_capabilities",
+    "get_hardware_config",
+    "get_limit_switches",
+    "self_test",
+    "get_firmware_status",
+    "read_inputs",
+    "bench_unlock",
+    "bench_test_output",
+    "get_faults",
+    "inject_fault",
+    "clear_faults",
+    "enable_motion",
+    "home_all",
+    "set_joint",
+    "set_gripper",
+    "estop",
+    "clear_estop",
+]
 
 
 class CookBotController:
@@ -174,6 +199,8 @@ class CookBotController:
         await add_transport_check("mega_hardware_config", "get_hardware_config")
         await add_transport_check("mega_limit_switches", "get_limit_switches")
         await add_transport_check("mega_self_test", "self_test")
+        await add_transport_check("mega_firmware_status", "get_firmware_status")
+        await add_transport_check("mega_inputs", "read_inputs")
 
         try:
             snapshot = self.snapshot()
@@ -626,6 +653,7 @@ class CookBotController:
             "ProductReadinessResponse": ProductReadinessResponse.model_json_schema(),
             "VersionResponse": VersionResponse.model_json_schema(),
             "ErrorTaxonomy": ERROR_TAXONOMY,
+            "MegaProtocolCommands": MEGA_PROTOCOL_COMMANDS,
         }
 
     async def _execute_recipe_step(self, step: dict[str, Any]) -> None:

@@ -1,3 +1,6 @@
+from pathlib import Path
+
+
 def test_schema_endpoint_exposes_core_contracts(client):
     response = client.get("/schemas")
     assert response.status_code == 200
@@ -13,3 +16,12 @@ def test_schema_endpoint_exposes_core_contracts(client):
     assert "ProductReadinessResponse" in body
     assert "VersionResponse" in body
     assert "ErrorTaxonomy" in body
+    assert "MegaProtocolCommands" in body
+    assert "bench_test_output" in body["MegaProtocolCommands"]
+
+
+def test_hardware_protocol_and_automation_docs_exist():
+    assert Path("docs/mega_protocol.md").exists()
+    assert Path("docs/hardware_automation.md").exists()
+    assert Path("platformio.ini").exists()
+    assert Path(".vscode/tasks.json").exists()

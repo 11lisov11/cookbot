@@ -406,6 +406,10 @@ export default function App() {
     return activeTab === tab ? base : `${base} hidden`;
   }
 
+  function diagnostic(name: string) {
+    return diagnostics?.checks.find((check) => check.name === name);
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -721,6 +725,23 @@ export default function App() {
             <h2>Hardware Gate</h2>
           </div>
           <div className="diagnostic-list">
+            <div className="diagnostic-item warn">
+              <strong>commissioning scripts only</strong>
+              <span>ADB deploy, PlatformIO upload, serial probe, and bench pulses run from scripts, not from the browser.</span>
+            </div>
+            {["mega_firmware_status", "mega_hardware_config", "mega_limit_switches", "mega_self_test", "mega_inputs"].map((name) => {
+              const check = diagnostic(name);
+              return (
+                <div className={`diagnostic-item ${check?.ok ? "ok" : "warn"}`} key={name}>
+                  <strong>{name}</strong>
+                  <span>{check?.detail || "not checked"}</span>
+                </div>
+              );
+            })}
+            <div className="diagnostic-item warn">
+              <strong>bench mode</strong>
+              <span>Compile with cookbot_mega2560_bench, unlock with BENCH_ONLY, pulse one explicit pin, then lock again.</span>
+            </div>
             <div className={`diagnostic-item ${hardwareReadiness?.ready_for_real_motion ? "ok" : "warn"}`}>
               <strong>{hardwareReadiness?.ready_for_real_motion ? "real motion ready" : "real motion locked"}</strong>
               <span>{hardwareReadiness?.items.filter((item) => item.verified).length || 0}/{hardwareReadiness?.items.length || 0} checks verified</span>

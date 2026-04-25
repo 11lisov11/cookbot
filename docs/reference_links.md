@@ -7,6 +7,11 @@ Official Arduino UNO Q:
 - https://docs.arduino.cc/tutorials/uno-q/user-manual/
 - https://docs.arduino.cc/tutorials/uno-q/single-board-computer/
 - https://docs.arduino.cc/tutorials/uno-q/debian-guide
+- https://support.arduino.cc/hc/en-us/articles/23170731875740-If-your-Arduino-UNO-Q-board-software-is-out-of-date
+
+PlatformIO:
+
+- https://docs.platformio.org/en/stable/boards/atmelavr/megaatmega2560.html
 
 Robot arm references:
 
@@ -20,4 +25,3 @@ Notes:
 - UNO Q official docs confirm a Debian Linux MPU plus STM32 MCU architecture.
 - The AliExpress page was not machine-readable during planning, so exact robot specs remain unconfirmed.
 - ProBots is a similar reference only, not proof of the user's hardware.
-

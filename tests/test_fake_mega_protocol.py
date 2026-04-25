@@ -24,6 +24,18 @@ def test_fake_mega_motion_lifecycle():
     capabilities = device.handle(build_request("get_capabilities"))
     assert capabilities.ok is True
     assert "set_joint" in capabilities.data["capabilities"]["supported_commands"]
+    assert "get_firmware_status" in capabilities.data["capabilities"]["supported_commands"]
+    firmware_status = device.handle(build_request("get_firmware_status"))
+    assert firmware_status.ok is True
+    assert firmware_status.data["firmware_status"]["bench_outputs_enabled"] is False
+    inputs = device.handle(build_request("read_inputs"))
+    assert inputs.ok is True
+    bench_unlock = device.handle(build_request("bench_unlock", {"confirm": "BENCH_ONLY"}))
+    assert bench_unlock.ok is False
+    assert bench_unlock.error == "bench_outputs_disabled"
+    bench_test = device.handle(build_request("bench_test_output", {"pin": 13, "duration_ms": 10}))
+    assert bench_test.ok is False
+    assert bench_test.error == "bench_outputs_disabled"
     assert device.handle(build_request("set_joint", {"joint_id": "joint_1", "position": 1})).error == "motion_not_enabled"
     assert device.handle(build_request("enable_motion")).ok is True
     assert device.handle(build_request("home_all")).ok is True

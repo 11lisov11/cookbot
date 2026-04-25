@@ -1,0 +1,44 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CookBot: PlatformIO Mega build",
+      "type": "shell",
+      "command": "python -m platformio run -e cookbot_mega2560",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "CookBot: PlatformIO Mega bench build",
+      "type": "shell",
+      "command": "python -m platformio run -e cookbot_mega2560_bench",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "CookBot: PlatformIO Mega upload",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File scripts/mega_platformio_upload.ps1 --port ${input:megaPort}",
+      "problemMatcher": []
+    },
+    {
+      "label": "CookBot: PlatformIO Mega monitor",
+      "type": "shell",
+      "command": "python -m platformio device monitor -b 115200 -p ${input:megaPort}",
+      "problemMatcher": []
+    },
+    {
+      "label": "CookBot: UNO Q ADB check",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File scripts/unoq_adb_check.ps1",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "megaPort",
+      "type": "promptString",
+      "description": "Arduino Mega serial port, for example COM5 or /dev/ttyACM0"
+    }
+  ]
+}

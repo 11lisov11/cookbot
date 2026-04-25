@@ -63,6 +63,8 @@ Detailed startup docs:
 - `docs/implementation_report.md`
 - `docs/real_mega_run.md`
 - `docs/no_hardware_testing.md`
+- `docs/mega_protocol.md`
+- `docs/hardware_automation.md`
 
 ## Fake Mega
 
@@ -140,12 +142,32 @@ Compile the Mega skeleton:
 arduino-cli compile --fqbn arduino:avr:mega mega_firmware/cookbot_mega_firmware
 ```
 
+PlatformIO/VS Code workflow:
+
+```powershell
+pio run -e cookbot_mega2560
+pio run -e cookbot_mega2560_bench
+```
+
 The sketch intentionally rejects real motion until the pin map, drivers, limits, and hardware safety wiring are verified.
+
+Upload through PlatformIO requires an explicit serial port:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/mega_platformio_upload.ps1 --port COM5
+```
+
+UNO Q ADB deployment starts with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/unoq_adb_check.ps1
+```
 
 ## Current Mock/Simulator Features
 
 - Mega protocol is implemented by fake Mega.
 - Fake Mega reports protocol capabilities and supports simulator fault injection.
+- Fake Mega mirrors hardware prep commands such as `get_firmware_status`, `read_inputs`, `bench_unlock`, and `bench_test_output`.
 - Camera is a generated SVG snapshot.
 - Optional `COOKBOT_CAMERA=libcamera` captures snapshots through `libcamera-still` on Linux/UNO Q.
 - The PWA includes a manifest and service worker for an installable local app shell.

@@ -37,6 +37,19 @@ class FakeMegaDevice:
             return {"limit_switches": self.simulator.limit_switches()}
         if command == "self_test":
             return {"self_test": self.simulator.self_test()}
+        if command == "get_firmware_status":
+            return {"firmware_status": self.simulator.firmware_status()}
+        if command == "read_inputs":
+            return {"inputs": self.simulator.read_inputs()}
+        if command == "bench_unlock":
+            return self.simulator.bench_unlock(args.get("confirm"))
+        if command == "bench_test_output":
+            pin = args.get("pin")
+            duration_ms = args.get("duration_ms")
+            return self.simulator.bench_test_output(
+                int(pin) if pin is not None else None,
+                int(duration_ms) if duration_ms is not None else None,
+            )
         if command == "get_faults":
             return {"faults": self.simulator.faults()}
         if command == "inject_fault":

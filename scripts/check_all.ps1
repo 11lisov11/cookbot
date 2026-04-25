@@ -38,10 +38,33 @@ finally {
 Write-Host "CookBot: Arduino Mega compile"
 if (Get-Command arduino-cli -ErrorAction SilentlyContinue) {
     arduino-cli compile --fqbn arduino:avr:mega mega_firmware/cookbot_mega_firmware
+    arduino-cli compile --fqbn arduino:avr:mega --build-property "build.extra_flags=-DCOOKBOT_BENCH_OUTPUTS_ENABLED=1" mega_firmware/cookbot_mega_firmware
 }
 else {
     Write-Warning "arduino-cli not found; skipping firmware compile"
 }
 
-Write-Host "CookBot: all checks passed"
+Write-Host "CookBot: PlatformIO Mega build"
+if (Get-Command pio -ErrorAction SilentlyContinue) {
+    pio run -e cookbot_mega2560
+    pio run -e cookbot_mega2560_bench
+}
+else {
+    python -c "import platformio" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        python -m platformio run -e cookbot_mega2560
+        python -m platformio run -e cookbot_mega2560_bench
+    }
+    else {
+        Write-Warning "PlatformIO pio not found; skipping PlatformIO compile"
+    }
+}
 
+Write-Host "CookBot: hardware automation dry-runs"
+python scripts/hardware_tooling.py unoq-adb-deploy --dry-run
+python scripts/hardware_tooling.py unoq-adb-logs --dry-run
+python scripts/hardware_tooling.py mega-platformio-upload --dry-run --port DRY_RUN_PORT
+python scripts/hardware_tooling.py mega-serial-probe --dry-run --port DRY_RUN_PORT
+python scripts/hardware_tooling.py commissioning-check --dry-run
+
+Write-Host "CookBot: all checks passed"

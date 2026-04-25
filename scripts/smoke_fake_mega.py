@@ -30,6 +30,16 @@ async def main() -> None:
         self_test = await transport.send("self_test")
         assert self_test.ok is True
         assert self_test.data["self_test"]["motion_outputs_enabled"] is False
+        firmware_status = await transport.send("get_firmware_status")
+        assert firmware_status.ok is True
+        assert firmware_status.data["firmware_status"]["bench_outputs_enabled"] is False
+        assert (await transport.send("read_inputs")).ok is True
+        bench_unlock = await transport.send("bench_unlock", {"confirm": "BENCH_ONLY"})
+        assert bench_unlock.ok is False
+        assert bench_unlock.error == "bench_outputs_disabled"
+        bench_test = await transport.send("bench_test_output", {"pin": 13, "duration_ms": 10})
+        assert bench_test.ok is False
+        assert bench_test.error == "bench_outputs_disabled"
         assert (await transport.send("ping")).data["pong"] is True
         assert (await transport.send("get_state")).ok is True
         before_home = await transport.send("set_joint", {"joint_id": "joint_1", "position": 1.0})
