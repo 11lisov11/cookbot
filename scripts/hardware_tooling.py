@@ -424,7 +424,10 @@ def _doctor_arduino_boards(dry_run: bool, arduino_path: str | None) -> list[str]
     if not arduino_path:
         return []
     output = _run_capture([arduino_path, "board", "list"], check=False)
-    return [line.rstrip() for line in output.splitlines() if line.strip()]
+    lines = [line.rstrip() for line in output.splitlines() if line.strip()]
+    if len(lines) == 1 and not any(marker in lines[0] for marker in ("COM", "/dev/", "usb", "serial")):
+        return []
+    return lines
 
 
 def _doctor_serial_ports(dry_run: bool) -> list[str]:
