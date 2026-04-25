@@ -100,6 +100,16 @@ type HardwareReadinessResponse = {
   items: Array<{ id: string; label: string; verified: boolean; evidence: string | null }>;
 };
 
+type HardwareGateReport = {
+  ready_for_real_motion: boolean;
+  real_motion_locked: boolean;
+  hardware_configured: boolean;
+  verified_count: number;
+  evidence_count: number;
+  total_count: number;
+  blockers: Array<{ id: string; label: string; detail: string; severity: string }>;
+};
+
 type CalibrationWizardStatus = {
   active: boolean;
   completed: boolean;
@@ -198,6 +208,7 @@ export default function App() {
   const [diagnostics, setDiagnostics] = useState<DiagnosticsResponse | null>(null);
   const [logs, setLogs] = useState<CommandLogEntry[]>([]);
   const [hardwareReadiness, setHardwareReadiness] = useState<HardwareReadinessResponse | null>(null);
+  const [hardwareGate, setHardwareGate] = useState<HardwareGateReport | null>(null);
   const [wizard, setWizard] = useState<CalibrationWizardStatus | null>(null);
   const [acceptance, setAcceptance] = useState<AcceptanceReport | null>(null);
   const [settings, setSettings] = useState<PublicSettings | null>(null);
@@ -250,6 +261,7 @@ export default function App() {
         nextDiagnostics,
         nextLogs,
         nextReadiness,
+        nextHardwareGate,
         nextWizard,
         nextAcceptance,
         nextProductReadiness,
@@ -260,6 +272,7 @@ export default function App() {
         api<DiagnosticsResponse>("/diagnostics"),
         api<CommandLogEntry[]>("/logs?limit=8"),
         api<HardwareReadinessResponse>("/hardware/readiness"),
+        api<HardwareGateReport>("/hardware/gate/report"),
         api<CalibrationWizardStatus>("/calibration/wizard/status"),
         api<AcceptanceReport>("/acceptance"),
         api<ProductReadinessResponse>("/product/readiness"),
@@ -275,6 +288,7 @@ export default function App() {
       setDiagnostics(nextDiagnostics);
       setLogs(nextLogs);
       setHardwareReadiness(nextReadiness);
+      setHardwareGate(nextHardwareGate);
       setWizard(nextWizard);
       setAcceptance(nextAcceptance);
       setProductReadiness(nextProductReadiness);
@@ -775,6 +789,20 @@ export default function App() {
               <strong>{hardwareReadiness?.ready_for_real_motion ? "real motion ready" : "real motion locked"}</strong>
               <span>{hardwareReadiness?.items.filter((item) => item.verified).length || 0}/{hardwareReadiness?.items.length || 0} checks verified</span>
             </div>
+            {hardwareGate ? (
+              <div className={`diagnostic-item ${hardwareGate.real_motion_locked ? "warn" : "ok"}`}>
+                <strong>{hardwareGate.real_motion_locked ? "gate blockers active" : "gate clear"}</strong>
+                <span>
+                  {hardwareGate.verified_count}/{hardwareGate.total_count} verified, {hardwareGate.evidence_count} evidence notes, {hardwareGate.blockers.length} blockers
+                </span>
+              </div>
+            ) : null}
+            {hardwareGate?.blockers.map((item) => (
+              <div className="diagnostic-item warn" key={`gate-${item.id}`}>
+                <strong>{item.label}</strong>
+                <span>{item.detail}</span>
+              </div>
+            ))}
             {hardwareReadiness?.items.map((item) => (
               <div className={`diagnostic-item ${item.verified ? "ok" : "warn"}`} key={item.id}>
                 <strong>{item.label}</strong>

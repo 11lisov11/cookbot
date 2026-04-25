@@ -248,6 +248,26 @@ class HardwareReadinessResponse(BaseModel):
     items: list[HardwareReadinessItem] = Field(default_factory=list)
 
 
+class HardwareGateBlocker(BaseModel):
+    id: str
+    label: str
+    detail: str
+    severity: Literal["blocker", "warning"] = "blocker"
+
+
+class HardwareGateReport(BaseModel):
+    project: Literal["CookBot"] = "CookBot"
+    ready_for_real_motion: bool = False
+    real_motion_locked: bool = True
+    hardware_configured: bool = False
+    required_mode: Literal["hardware"] = "hardware"
+    required_mega_transport: Literal["serial"] = "serial"
+    verified_count: int = 0
+    evidence_count: int = 0
+    total_count: int = 0
+    blockers: list[HardwareGateBlocker] = Field(default_factory=list)
+
+
 class CalibrationWizardStatus(BaseModel):
     active: bool = False
     completed: bool = False

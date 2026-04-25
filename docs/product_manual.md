@@ -22,7 +22,8 @@ CookBot v0.1 is a finished no-hardware product for local demonstration and softw
 
 The `/product/readiness` endpoint combines acceptance, diagnostics, and hardware gate state. For v0.1, the expected ready state is `no_hardware_product_ready` with real motion locked.
 
+The `/hardware/gate/report` endpoint lists the exact software and evidence blockers for future hardware work. In no-hardware mode it must report `real_motion_locked=true`.
+
 ## Backup And Restore Validation
 
 `GET /backup` creates a safe bundle containing workspace, hardware readiness, calibration status, recipes, and acceptance. `POST /restore/validate` checks a bundle shape and refuses bundles that try to apply real-motion readiness automatically.
-

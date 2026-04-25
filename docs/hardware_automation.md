@@ -18,6 +18,14 @@ bash scripts/hardware_doctor.sh --backend-url http://127.0.0.1:8000
 
 The doctor reports missing physical devices without unlocking motion. `ready_for_real_motion` must remain `false`.
 
+The backend also exposes a strict gate report:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/hardware/gate/report
+```
+
+This report remains blocked until hardware mode, serial Mega transport, `COOKBOT_HARDWARE_CONFIGURED=true`, verified checklist items, and evidence notes are all present.
+
 ## PlatformIO Mega Workflow
 
 Build locked firmware:

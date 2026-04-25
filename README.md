@@ -125,6 +125,7 @@ The simulator exposes `joint_1`, `joint_2`, `joint_3`, and `gripper` as safe pla
 - `POST /recipes/runtime/abort`
 - `GET /workspace`
 - `GET /hardware/readiness`
+- `GET /hardware/gate/report`
 - `GET /schemas`
 - `GET /acceptance`
 - `GET /product/readiness`

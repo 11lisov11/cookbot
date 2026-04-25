@@ -40,3 +40,13 @@ def test_hardware_readiness_gate_is_not_ready_by_default(client):
     assert body["project"] == "CookBot"
     assert body["ready_for_real_motion"] is False
     assert any(item["id"] == "estop" for item in body["items"])
+
+    gate = client.get("/hardware/gate/report")
+    assert gate.status_code == 200
+    gate_body = gate.json()
+    assert gate_body["ready_for_real_motion"] is False
+    assert gate_body["real_motion_locked"] is True
+    assert gate_body["hardware_configured"] is False
+    blocker_ids = {item["id"] for item in gate_body["blockers"]}
+    assert "hardware_configured_disabled" in blocker_ids
+    assert "backend_not_hardware_mode" in blocker_ids

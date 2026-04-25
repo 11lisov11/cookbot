@@ -32,6 +32,8 @@ from .models import (
     DiagnosticsResponse,
     ExportBundle,
     FaultInjectionRequest,
+    HardwareGateBlocker,
+    HardwareGateReport,
     GripperRequest,
     HardwareReadinessResponse,
     HealthResponse,
@@ -162,7 +164,7 @@ class CookBotController:
             backend_version=__version__,
             git_commit=_git_commit(),
             build_mode=self.settings.mode,
-            hardware_configured=False,
+            hardware_configured=self.settings.hardware_configured,
         )
 
     async def diagnostics(self) -> DiagnosticsResponse:
@@ -241,6 +243,18 @@ class CookBotController:
             )
         except Exception as exc:
             checks.append(DiagnosticCheck(name="hardware_readiness", ok=False, detail=str(exc)))
+
+        try:
+            gate = self.hardware_gate_report()
+            checks.append(
+                DiagnosticCheck(
+                    name="hardware_gate",
+                    ok=True,
+                    detail="locked" if gate.real_motion_locked else "ready_for_real_motion",
+                )
+            )
+        except Exception as exc:
+            checks.append(DiagnosticCheck(name="hardware_gate", ok=False, detail=str(exc)))
 
         try:
             calibration = await self.calibration_status()
@@ -500,11 +514,79 @@ class CookBotController:
     def hardware_readiness_model(self) -> HardwareReadinessResponse:
         return self.hardware_readiness.load()
 
+    def hardware_gate_report(self) -> HardwareGateReport:
+        readiness = self.hardware_readiness_model()
+        blockers: list[HardwareGateBlocker] = []
+        verified_count = sum(1 for item in readiness.items if item.verified)
+        evidence_count = sum(1 for item in readiness.items if item.evidence)
+
+        if self.settings.mode != "hardware":
+            blockers.append(
+                HardwareGateBlocker(
+                    id="backend_not_hardware_mode",
+                    label="Backend is not in hardware mode",
+                    detail=f"COOKBOT_MODE={self.settings.mode}; real motion requires hardware.",
+                )
+            )
+        if self.settings.mega_transport != "serial":
+            blockers.append(
+                HardwareGateBlocker(
+                    id="mega_transport_not_serial",
+                    label="Mega transport is not serial",
+                    detail=f"COOKBOT_MEGA_TRANSPORT={self.settings.mega_transport}; real motion requires serial.",
+                )
+            )
+        if not self.settings.hardware_configured:
+            blockers.append(
+                HardwareGateBlocker(
+                    id="hardware_configured_disabled",
+                    label="Hardware configuration flag is disabled",
+                    detail="COOKBOT_HARDWARE_CONFIGURED must stay false until physical evidence is complete.",
+                )
+            )
+        if not readiness.items:
+            blockers.append(
+                HardwareGateBlocker(
+                    id="hardware_readiness_empty",
+                    label="Hardware readiness checklist is empty",
+                    detail="config/hardware_readiness.yaml must contain required verification items.",
+                )
+            )
+        for item in readiness.items:
+            if not item.verified:
+                blockers.append(
+                    HardwareGateBlocker(
+                        id=f"{item.id}_not_verified",
+                        label=item.label,
+                        detail="verification missing",
+                    )
+                )
+            elif not item.evidence:
+                blockers.append(
+                    HardwareGateBlocker(
+                        id=f"{item.id}_missing_evidence",
+                        label=item.label,
+                        detail="verified item has no evidence link or note",
+                    )
+                )
+
+        ready = not blockers
+        return HardwareGateReport(
+            ready_for_real_motion=ready,
+            real_motion_locked=not ready,
+            hardware_configured=self.settings.hardware_configured,
+            verified_count=verified_count,
+            evidence_count=evidence_count,
+            total_count=len(readiness.items),
+            blockers=blockers,
+        )
+
     async def acceptance_report(self) -> AcceptanceReport:
         state = await self.state()
         diagnostics = await self.diagnostics()
         recipes = self.list_recipes()
         readiness = self.hardware_readiness_model()
+        gate = self.hardware_gate_report()
         docs_missing = [str(path) for path in REQUIRED_PRODUCT_DOCS if not path.exists()]
         web_build = Path("web/dist/index.html").exists()
         web_source = Path("web/package.json").exists()
@@ -545,8 +627,8 @@ class CookBotController:
             ChecklistItem(
                 id="real_motion_locked",
                 label="Real motion is locked until hardware readiness",
-                ok=not readiness.ready_for_real_motion,
-                detail="locked",
+                ok=gate.real_motion_locked,
+                detail="locked" if gate.real_motion_locked else "unlocked",
             ),
             ChecklistItem(
                 id="ui_build_available",
@@ -628,6 +710,7 @@ class CookBotController:
         acceptance = await self.acceptance_report()
         diagnostics = await self.diagnostics()
         readiness = self.hardware_readiness_model()
+        gate = self.hardware_gate_report()
         items = [
             ChecklistItem(
                 id="acceptance",
@@ -644,8 +727,8 @@ class CookBotController:
             ChecklistItem(
                 id="hardware_lock",
                 label="Real motion remains locked",
-                ok=not readiness.ready_for_real_motion,
-                detail="locked",
+                ok=gate.real_motion_locked,
+                detail=f"{len(gate.blockers)} blockers",
             ),
         ]
         ok = all(item.ok for item in items)
@@ -757,6 +840,7 @@ class CookBotController:
             "MegaResponse": MegaResponse.model_json_schema(),
             "AIPlan": AIPlan.model_json_schema(),
             "HardwareReadinessResponse": HardwareReadinessResponse.model_json_schema(),
+            "HardwareGateReport": HardwareGateReport.model_json_schema(),
             "WorkspaceModel": WorkspaceModel.model_json_schema(),
             "AcceptanceReport": AcceptanceReport.model_json_schema(),
             "ExportBundle": ExportBundle.model_json_schema(),
@@ -961,6 +1045,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/hardware/readiness", response_model=HardwareReadinessResponse)
     async def hardware_readiness() -> HardwareReadinessResponse:
         return controller.hardware_readiness_model()
+
+    @app.get("/hardware/gate/report", response_model=HardwareGateReport)
+    async def hardware_gate_report() -> HardwareGateReport:
+        return controller.hardware_gate_report()
 
     @app.get("/acceptance", response_model=AcceptanceReport)
     async def acceptance() -> AcceptanceReport:

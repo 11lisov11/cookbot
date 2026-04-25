@@ -54,6 +54,9 @@ def main() -> None:
     assert workspace["project"] == "CookBot"
     readiness = request("/hardware/readiness")
     assert readiness["ready_for_real_motion"] is False
+    gate = request("/hardware/gate/report")
+    assert gate["real_motion_locked"] is True
+    assert gate["ready_for_real_motion"] is False
     schemas = request("/schemas")
     assert "SystemState" in schemas
     assert "BackupBundle" in schemas

@@ -99,6 +99,7 @@ def test_optional_api_token_protects_product_endpoints(tmp_path: Path):
     assert client.get("/backup").status_code == 401
     assert client.get("/product/readiness").status_code == 401
     assert client.get("/commissioning/guide").status_code == 401
+    assert client.get("/hardware/gate/report").status_code == 401
     assert client.post("/restore/validate", json={}).status_code == 401
 
     headers = {"X-CookBot-Token": "secret"}
@@ -106,6 +107,7 @@ def test_optional_api_token_protects_product_endpoints(tmp_path: Path):
     assert client.get("/backup", headers=headers).status_code == 200
     assert client.get("/product/readiness", headers=headers).status_code == 200
     assert client.get("/commissioning/guide", headers=headers).status_code == 200
+    assert client.get("/hardware/gate/report", headers=headers).status_code == 200
     restore = client.post("/restore/validate", json={}, headers=headers)
     assert restore.status_code == 200
     assert restore.json()["valid"] is False
