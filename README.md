@@ -66,6 +66,7 @@ Detailed startup docs:
 - `docs/mega_protocol.md`
 - `docs/hardware_automation.md`
 - `docs/commissioning_runbook.md`
+- `docs/release_bundle.md`
 
 ## Fake Mega
 
@@ -237,6 +238,17 @@ python -m uvicorn unoq_backend.app:app --host 127.0.0.1 --port 8000
 ```
 
 The PWA Settings panel stores this token in browser local storage and sends it as `X-CookBot-Token`.
+
+## Release Bundle
+
+After checks pass, build and validate a local handoff package:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_release.ps1 --output dist/release --json
+powershell -ExecutionPolicy Bypass -File scripts/validate_release.ps1 --latest --output dist/release --json
+```
+
+The zip contains source/docs/config/scripts plus generated `web/dist` and PlatformIO Mega firmware artifacts when present. Its manifest keeps `real_motion_locked=true` and `ready_for_real_motion=false`.
 
 ## OpenAI-Compatible AI Boundary
 

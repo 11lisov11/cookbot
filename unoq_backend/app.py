@@ -69,6 +69,7 @@ REQUIRED_PRODUCT_DOCS = [
     Path("docs/mega_protocol.md"),
     Path("docs/hardware_automation.md"),
     Path("docs/commissioning_runbook.md"),
+    Path("docs/release_bundle.md"),
     Path("docs/safety.md"),
     Path("docs/no_hardware_testing.md"),
     Path("RELEASE_NOTES.md"),
@@ -272,6 +273,15 @@ class CookBotController:
                 name="web_build",
                 ok=web_source,
                 detail="dist_ready" if web_build else "source_ready_build_pending",
+            )
+        )
+        release_tooling = Path("scripts/release_tooling.py").exists()
+        release_bundle = Path("dist/release/latest_release_path.txt").exists()
+        checks.append(
+            DiagnosticCheck(
+                name="release_bundle",
+                ok=release_tooling,
+                detail="latest_ready" if release_bundle else "tooling_ready",
             )
         )
 
@@ -499,6 +509,7 @@ class CookBotController:
         web_build = Path("web/dist/index.html").exists()
         web_source = Path("web/package.json").exists()
         ci_workflow = Path(".github/workflows/check.yml").exists()
+        release_tooling = Path("scripts/release_tooling.py").exists()
         items = [
             ChecklistItem(id="backend", label="Backend responds", ok=True, detail="ok"),
             ChecklistItem(
@@ -566,6 +577,12 @@ class CookBotController:
                 label="Product documentation is complete",
                 ok=not docs_missing,
                 detail="ok" if not docs_missing else ",".join(docs_missing),
+            ),
+            ChecklistItem(
+                id="release_bundle_tooling",
+                label="Release bundle tooling is available",
+                ok=release_tooling,
+                detail="ready" if release_tooling else "missing_release_tooling",
             ),
         ]
         return AcceptanceReport(ok=all(item.ok for item in items), items=items)

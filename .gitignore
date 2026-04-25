@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 venv/
 logs/
+dist/
 web/node_modules/
 web/dist/
 web/.vite/

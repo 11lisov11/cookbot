@@ -44,6 +44,18 @@
       "type": "shell",
       "command": "powershell -ExecutionPolicy Bypass -File scripts/commissioning_check.ps1 --dry-run",
       "problemMatcher": []
+    },
+    {
+      "label": "CookBot: Build release bundle",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File scripts/build_release.ps1 --output dist/release --json",
+      "problemMatcher": []
+    },
+    {
+      "label": "CookBot: Validate latest release bundle",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File scripts/validate_release.ps1 --latest --output dist/release --json",
+      "problemMatcher": []
     }
   ],
   "inputs": [

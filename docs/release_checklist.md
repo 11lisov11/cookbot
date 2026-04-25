@@ -13,4 +13,7 @@ Use this checklist before tagging a no-hardware release.
 - `config/hardware_readiness.yaml` still keeps real motion locked unless hardware evidence exists.
 - GitHub Actions workflow is present.
 - README and release notes describe the no-hardware boundary.
-
+- Release bundle builds and validates:
+  - `python scripts/release_tooling.py build --output dist/release --json`
+  - `python scripts/release_tooling.py validate --latest --output dist/release --json`
+- Release manifest keeps `real_motion_locked=true` and `ready_for_real_motion=false`.

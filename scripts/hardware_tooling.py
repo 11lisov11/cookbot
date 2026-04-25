@@ -292,8 +292,13 @@ def _hardware_doctor_report(args: argparse.Namespace) -> dict:
         "docs/mega_protocol.md",
         "docs/hardware_automation.md",
         "docs/commissioning_runbook.md",
+        "docs/release_bundle.md",
         "scripts/hardware_doctor.ps1",
         "scripts/hardware_doctor.sh",
+        "scripts/build_release.ps1",
+        "scripts/build_release.sh",
+        "scripts/validate_release.ps1",
+        "scripts/validate_release.sh",
         "scripts/commissioning_check.ps1",
         "scripts/commissioning_check.sh",
     ]

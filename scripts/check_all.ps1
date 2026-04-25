@@ -68,4 +68,8 @@ python scripts/hardware_tooling.py mega-platformio-upload --dry-run --port DRY_R
 python scripts/hardware_tooling.py mega-serial-probe --dry-run --port DRY_RUN_PORT
 python scripts/hardware_tooling.py commissioning-check --dry-run
 
+Write-Host "CookBot: release bundle"
+python scripts/release_tooling.py build --output dist/release --json
+python scripts/release_tooling.py validate --latest --output dist/release --json
+
 Write-Host "CookBot: all checks passed"

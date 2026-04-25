@@ -12,6 +12,7 @@ def test_diagnostics_endpoint_reports_core_checks(client):
         "mega_capabilities",
         "camera",
         "hardware_readiness",
+        "release_bundle",
     } <= names
 
 

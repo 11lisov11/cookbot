@@ -59,3 +59,8 @@ jobs:
         run: |
           python -m platformio run -e cookbot_mega2560
           python -m platformio run -e cookbot_mega2560_bench
+
+      - name: Release bundle
+        run: |
+          python scripts/release_tooling.py build --output dist/release --json
+          python scripts/release_tooling.py validate --latest --output dist/release --json
