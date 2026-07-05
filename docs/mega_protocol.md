@@ -35,8 +35,10 @@ Response:
 - Request fields are top-level JSON fields for the commissioning sketch: `axis`, `steps`, `direction`, `pulse_us`, and `step_delay_us`.
 - Supported axes are `A`, `B`, `C`, `SLIDER`, and aliases `X`, `Y`, `Z`, `E0`, `E1`. `SLIDER` maps to RAMPS `E0` on the connected controller.
 - `steps` is capped at 25 per command. Drivers are disabled immediately after each jog pulse.
-- `move_axis`: bounded long move inside Mega with trapezoid profiling. Fields: `axis`, `direction`, `steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`.
-- `seek_limit`: bounded limit seek inside Mega with acceleration and per-step limit checks. Fields: `axis`, `limit`, `direction`, `max_steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`.
+- `move_axis`: bounded long move inside Mega with trapezoid profiling. Fields: `axis`, `direction`, `steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`, optional `step_backend`.
+- `seek_limit`: bounded limit seek inside Mega with acceleration and per-step limit checks. Fields: `axis`, `limit`, `direction`, `max_steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`, optional `step_backend`.
+- `step_backend` is `direct` or `digital`. `direct` uses direct AVR port writes for speed. `digital` uses Arduino `digitalWrite`, matching the original `jog_axis` pulse path. `SLIDER`/`E0` defaults to `digital`; other axes default to `direct`.
+- `move_axis` and `seek_limit` accept `min_delay_us` up to `200000` and `start_delay_us` up to `250000` for worm-gear/low-torque bring-up. Long slow moves may take minutes; the PC tooling sizes its serial timeout from the requested step count and delay.
 - `set_axis_enabled`: enables or disables one RAMPS stepper driver. Fields: `axis`, `enabled` (`0` or `1`). ESTOP clears all driver enables.
 - `jog_axis`, `move_axis`, and `seek_limit` automatically turn RAMPS `D9` on for driver cooling before movement. Use `set_output` with `{"output":"D9","pwm":0}` to turn it off after testing.
 - `move_axis` and `seek_limit` disable the driver at command completion unless hold is requested.
@@ -65,6 +67,7 @@ Response:
 - `invalid_move_timing`: `move_axis` timing parameters are outside the allowed range.
 - `invalid_seek_steps`: `seek_limit` max step count is outside the allowed range.
 - `invalid_seek_timing`: `seek_limit` timing parameters are outside the allowed range.
+- `invalid_step_backend`: `step_backend` is not `direct` or `digital`.
 - `invalid_output_pwm`: `set_output` PWM is outside `0..255`.
 - `invalid_output_duration`: `set_output` duration is outside the allowed range.
 - `invalid_axis_enabled`: `set_axis_enabled` value is not `0` or `1`.

@@ -102,6 +102,7 @@ def test_ramps14_move_and_seek_dry_run_are_explicit():
     assert default_a_move.returncode == 0
     assert '"min_delay_us": 250' in default_a_move.stdout
     assert '"accel_steps": 0' in default_a_move.stdout
+    assert '"step_backend": "direct"' in default_a_move.stdout
 
     default_b_move = run_tool(
         "mega-ramps14-move",
@@ -117,6 +118,23 @@ def test_ramps14_move_and_seek_dry_run_are_explicit():
     assert '"min_delay_us": 1000' in default_b_move.stdout
     assert '"accel_steps": 250' in default_b_move.stdout
 
+    default_slider_move = run_tool(
+        "mega-ramps14-move",
+        "--port",
+        "COM5",
+        "--axis",
+        "E0",
+        "--direction",
+        "1",
+        "--dry-run",
+    )
+    assert default_slider_move.returncode == 0
+    assert '"pulse_us": 8' in default_slider_move.stdout
+    assert '"start_delay_us": 12000' in default_slider_move.stdout
+    assert '"min_delay_us": 12000' in default_slider_move.stdout
+    assert '"accel_steps": 0' in default_slider_move.stdout
+    assert '"step_backend": "digital"' in default_slider_move.stdout
+
     move = run_tool(
         "mega-ramps14-move",
         "--port",
@@ -129,6 +147,8 @@ def test_ramps14_move_and_seek_dry_run_are_explicit():
         "1200",
         "--min-delay-us",
         "1850",
+        "--step-backend",
+        "digital",
         "--hold",
         "--dry-run",
     )
@@ -137,6 +157,7 @@ def test_ramps14_move_and_seek_dry_run_are_explicit():
     assert "1850" in move.stdout
     assert "decel_steps" in move.stdout
     assert '"hold": 1' in move.stdout
+    assert '"step_backend": "digital"' in move.stdout
 
     seek = run_tool(
         "mega-ramps14-seek-limit",

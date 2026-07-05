@@ -121,6 +121,7 @@ def _add_ramps14_motion_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--min-delay-us", type=int)
     parser.add_argument("--accel-steps", type=int)
     parser.add_argument("--decel-steps", type=int)
+    parser.add_argument("--step-backend", choices=["direct", "digital"])
     parser.add_argument("--dry-run", action="store_true")
 
 
@@ -363,6 +364,7 @@ def cmd_mega_ramps14_move(args: argparse.Namespace) -> int:
         "direction": args.direction,
         "steps": args.steps,
         "hold": 1 if args.hold else 0,
+        "step_backend": _resolve_ramps14_step_backend(args),
         **timing,
     }
     return _send_ramps14_motion_command(args, command)
@@ -381,6 +383,7 @@ def cmd_mega_ramps14_seek_limit(args: argparse.Namespace) -> int:
         "limit": args.limit,
         "direction": args.direction,
         "max_steps": args.max_steps,
+        "step_backend": _resolve_ramps14_step_backend(args),
         **timing,
     }
     return _send_ramps14_motion_command(args, command)
@@ -434,6 +437,18 @@ def _resolve_ramps14_timing(args: argparse.Namespace, purpose: str) -> dict[str,
             "accel_steps": 0,
             "decel_steps": 0,
         }
+    elif args.axis in {"SLIDER", "E0"}:
+        # Learned on the connected CookBot slider on COM6. The E0 worm-drive
+        # axis stalled with very slow 200 ms timing and with faster ramped
+        # profiles, but moved repeatably in 600-step cycles at a flat 12 ms
+        # step interval through the digitalWrite pulse path.
+        defaults = {
+            "pulse_us": 8,
+            "start_delay_us": 12000,
+            "min_delay_us": 12000,
+            "accel_steps": 0,
+            "decel_steps": 0,
+        }
     else:
         defaults = {
             "pulse_us": 4,
@@ -450,6 +465,14 @@ def _resolve_ramps14_timing(args: argparse.Namespace, purpose: str) -> dict[str,
         "accel_steps": args.accel_steps if args.accel_steps is not None else defaults["accel_steps"],
         "decel_steps": args.decel_steps if args.decel_steps is not None else defaults["decel_steps"],
     }
+
+
+def _resolve_ramps14_step_backend(args: argparse.Namespace) -> str:
+    if args.step_backend:
+        return args.step_backend
+    if args.axis in {"SLIDER", "E0"}:
+        return "digital"
+    return "direct"
 
 
 def _send_ramps14_motion_command(args: argparse.Namespace, command: dict) -> int:
@@ -476,11 +499,25 @@ def _send_ramps14_motion_command(args: argparse.Namespace, command: dict) -> int
         firmware_status = status.get("data", {}).get("firmware_status", {})
         if not firmware_status.get("ramps14_commissioning"):
             return _fail("ramps14_commissioning_not_enabled", False, firmware_status, 5)
-        response = _send_raw_mega_json(handle, command, timeout=90.0)
+        response = _send_raw_mega_json(handle, command, timeout=_ramps14_command_timeout_seconds(command))
         print(json.dumps(response, indent=2))
         if not response.get("ok"):
             return _fail(f"motion_failed:{response.get('error')}", False, response, 6)
     return 0
+
+
+def _ramps14_command_timeout_seconds(command: dict) -> float:
+    motion_command = command.get("command")
+    if motion_command not in {"move_axis", "seek_limit"}:
+        return 90.0
+
+    step_count = int(command.get("steps") or command.get("max_steps") or 0)
+    pulse_us = int(command.get("pulse_us") or 0)
+    start_delay_us = int(command.get("start_delay_us") or 0)
+    min_delay_us = int(command.get("min_delay_us") or 0)
+    worst_step_us = max(start_delay_us, min_delay_us) + pulse_us
+    estimated_seconds = (step_count * worst_step_us) / 1_000_000.0
+    return max(90.0, min(3600.0, estimated_seconds + 45.0))
 
 
 def cmd_commissioning_check(args: argparse.Namespace) -> int:

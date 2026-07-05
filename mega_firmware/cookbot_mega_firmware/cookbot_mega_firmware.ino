@@ -57,8 +57,10 @@ void clearRamps14AxisEnables();
 void clearRamps14Outputs();
 void ensureRamps14MotionFanOn();
 bool readRamps14LimitActive(const String &limitId);
-unsigned int profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps);
-long runRamps14Steps(const Ramps14AxisPins &pins, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool holdEnabled, const String &targetLimit, bool stopOnLimit, bool &limitHit);
+unsigned long profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps);
+void slowDelayMicroseconds(unsigned long delayUs);
+bool defaultDigitalStepBackendForAxis(const String &axis);
+long runRamps14Steps(const Ramps14AxisPins &pins, bool digitalStepBackend, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool holdEnabled, const String &targetLimit, bool stopOnLimit, bool &limitHit);
 #endif
 
 void setup() {
@@ -432,17 +434,25 @@ void handleRamps14MoveAxis(const String &id, const String &line) {
   long accelSteps = extractJsonInt(line, "accel_steps", 250);
   long decelSteps = extractJsonInt(line, "decel_steps", accelSteps);
   long hold = extractJsonInt(line, "hold", 0);
+  String stepBackend = extractJsonString(line, "step_backend");
+  if (stepBackend.length() == 0) {
+    stepBackend = defaultDigitalStepBackendForAxis(axis) ? "digital" : "direct";
+  }
 
   if (steps < 1 || steps > 30000) {
     sendError(id, "invalid_move_steps");
     return;
   }
-  if (pulseUs < 2 || pulseUs > 20 || minDelayUs < 250 || minDelayUs > 20000 || startDelayUs < minDelayUs || startDelayUs > 30000 || accelSteps < 0 || accelSteps > 10000 || decelSteps < 0 || decelSteps > 10000) {
+  if (pulseUs < 2 || pulseUs > 20 || minDelayUs < 250 || minDelayUs > 200000 || startDelayUs < minDelayUs || startDelayUs > 250000 || accelSteps < 0 || accelSteps > 10000 || decelSteps < 0 || decelSteps > 10000) {
     sendError(id, "invalid_move_timing");
     return;
   }
   if (hold < 0 || hold > 1) {
     sendError(id, "invalid_hold");
+    return;
+  }
+  if (stepBackend != "direct" && stepBackend != "digital") {
+    sendError(id, "invalid_step_backend");
     return;
   }
 
@@ -453,8 +463,8 @@ void handleRamps14MoveAxis(const String &id, const String &line) {
   }
 
   bool limitHit = false;
-  long moved = runRamps14Steps(pins, direction, steps, pulseUs, startDelayUs, minDelayUs, accelSteps, decelSteps, hold == 1, "", false, limitHit);
-  sendOk(id, "\"moved\":true,\"axis\":\"" + axis + "\",\"steps\":" + String(moved) + ",\"direction\":" + String(direction == 0 ? 0 : 1) + ",\"motion_profile\":\"trapezoid\",\"min_delay_us\":" + String(minDelayUs) + ",\"start_delay_us\":" + String(startDelayUs) + ",\"accel_steps\":" + String(accelSteps) + ",\"decel_steps\":" + String(decelSteps) + ",\"hold\":" + boolJson(hold == 1));
+  long moved = runRamps14Steps(pins, stepBackend == "digital", direction, steps, pulseUs, startDelayUs, minDelayUs, accelSteps, decelSteps, hold == 1, "", false, limitHit);
+  sendOk(id, "\"moved\":true,\"axis\":\"" + axis + "\",\"steps\":" + String(moved) + ",\"direction\":" + String(direction == 0 ? 0 : 1) + ",\"motion_profile\":\"trapezoid\",\"step_backend\":\"" + stepBackend + "\",\"min_delay_us\":" + String(minDelayUs) + ",\"start_delay_us\":" + String(startDelayUs) + ",\"accel_steps\":" + String(accelSteps) + ",\"decel_steps\":" + String(decelSteps) + ",\"hold\":" + boolJson(hold == 1));
 #else
   (void)line;
   sendError(id, "ramps14_commissioning_disabled");
@@ -481,6 +491,10 @@ void handleRamps14SeekLimit(const String &id, const String &line) {
   long minDelayUs = extractJsonInt(line, "min_delay_us", 1850);
   long accelSteps = extractJsonInt(line, "accel_steps", 0);
   long decelSteps = extractJsonInt(line, "decel_steps", 0);
+  String stepBackend = extractJsonString(line, "step_backend");
+  if (stepBackend.length() == 0) {
+    stepBackend = defaultDigitalStepBackendForAxis(axis) ? "digital" : "direct";
+  }
 
   if (maxSteps < 1 || maxSteps > 40000) {
     sendError(id, "invalid_seek_steps");
@@ -490,8 +504,12 @@ void handleRamps14SeekLimit(const String &id, const String &line) {
     sendError(id, "unknown_limit");
     return;
   }
-  if (pulseUs < 2 || pulseUs > 20 || minDelayUs < 250 || minDelayUs > 20000 || startDelayUs < minDelayUs || startDelayUs > 30000 || accelSteps < 0 || accelSteps > 10000 || decelSteps < 0 || decelSteps > 10000) {
+  if (pulseUs < 2 || pulseUs > 20 || minDelayUs < 250 || minDelayUs > 200000 || startDelayUs < minDelayUs || startDelayUs > 250000 || accelSteps < 0 || accelSteps > 10000 || decelSteps < 0 || decelSteps > 10000) {
     sendError(id, "invalid_seek_timing");
+    return;
+  }
+  if (stepBackend != "direct" && stepBackend != "digital") {
+    sendError(id, "invalid_step_backend");
     return;
   }
 
@@ -502,8 +520,8 @@ void handleRamps14SeekLimit(const String &id, const String &line) {
   }
 
   bool limitHit = false;
-  long moved = runRamps14Steps(pins, direction, maxSteps, pulseUs, startDelayUs, minDelayUs, accelSteps, decelSteps, false, limitId, true, limitHit);
-  sendOk(id, "\"limit_hit\":" + boolJson(limitHit) + ",\"axis\":\"" + axis + "\",\"limit\":\"" + limitId + "\",\"steps\":" + String(moved) + ",\"direction\":" + String(direction == 0 ? 0 : 1) + ",\"motion_profile\":\"trapezoid\",\"min_delay_us\":" + String(minDelayUs) + ",\"start_delay_us\":" + String(startDelayUs) + ",\"accel_steps\":" + String(accelSteps) + ",\"decel_steps\":" + String(decelSteps));
+  long moved = runRamps14Steps(pins, stepBackend == "digital", direction, maxSteps, pulseUs, startDelayUs, minDelayUs, accelSteps, decelSteps, false, limitId, true, limitHit);
+  sendOk(id, "\"limit_hit\":" + boolJson(limitHit) + ",\"axis\":\"" + axis + "\",\"limit\":\"" + limitId + "\",\"steps\":" + String(moved) + ",\"direction\":" + String(direction == 0 ? 0 : 1) + ",\"motion_profile\":\"trapezoid\",\"step_backend\":\"" + stepBackend + "\",\"min_delay_us\":" + String(minDelayUs) + ",\"start_delay_us\":" + String(startDelayUs) + ",\"accel_steps\":" + String(accelSteps) + ",\"decel_steps\":" + String(decelSteps));
 #else
   (void)line;
   sendError(id, "ramps14_commissioning_disabled");
@@ -685,7 +703,7 @@ bool readRamps14LimitActive(const String &limitId) {
   return digitalRead((uint8_t)pin) == LOW;
 }
 
-unsigned int profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps) {
+unsigned long profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps) {
   long delayUs = minDelayUs;
   if (accelSteps > 0 && stepIndex < accelSteps) {
     long delta = startDelayUs - minDelayUs;
@@ -708,10 +726,24 @@ unsigned int profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs,
   if (delayUs < minDelayUs) {
     delayUs = minDelayUs;
   }
-  return (unsigned int)delayUs;
+  return (unsigned long)delayUs;
 }
 
-long runRamps14Steps(const Ramps14AxisPins &pins, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool holdEnabled, const String &targetLimit, bool stopOnLimit, bool &limitHit) {
+void slowDelayMicroseconds(unsigned long delayUs) {
+  while (delayUs > 16000UL) {
+    delayMicroseconds(16000);
+    delayUs -= 16000UL;
+  }
+  if (delayUs > 0) {
+    delayMicroseconds((unsigned int)delayUs);
+  }
+}
+
+bool defaultDigitalStepBackendForAxis(const String &axis) {
+  return axis == "SLIDER" || axis == "E0";
+}
+
+long runRamps14Steps(const Ramps14AxisPins &pins, bool digitalStepBackend, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool holdEnabled, const String &targetLimit, bool stopOnLimit, bool &limitHit) {
   limitHit = false;
   pinMode(pins.stepPin, OUTPUT);
   pinMode(pins.dirPin, OUTPUT);
@@ -731,11 +763,19 @@ long runRamps14Steps(const Ramps14AxisPins &pins, long direction, long maxSteps,
       limitHit = true;
       break;
     }
-    *stepPort |= stepMask;
-    delayMicroseconds((unsigned int)pulseUs);
-    *stepPort &= (uint8_t)~stepMask;
+    if (digitalStepBackend) {
+      digitalWrite(pins.stepPin, HIGH);
+    } else {
+      *stepPort |= stepMask;
+    }
+    slowDelayMicroseconds((unsigned long)pulseUs);
+    if (digitalStepBackend) {
+      digitalWrite(pins.stepPin, LOW);
+    } else {
+      *stepPort &= (uint8_t)~stepMask;
+    }
     moved++;
-    delayMicroseconds(profiledDelayUs(index, maxSteps, startDelayUs, minDelayUs, accelSteps, decelSteps));
+    slowDelayMicroseconds(profiledDelayUs(index, maxSteps, startDelayUs, minDelayUs, accelSteps, decelSteps));
     if (stopOnLimit && readRamps14LimitActive(targetLimit)) {
       limitHit = true;
       break;

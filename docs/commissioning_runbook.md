@@ -160,6 +160,9 @@ sent to Mega, then Mega clocks the motor and checks the limit input internally.
 The commissioning firmware now uses direct port writes for STEP pulses and
 supports `decel_steps` for fixed moves; limit seeks still use the slower
 `1850us` profile for repeatability.
+For `SLIDER`/`E0`, long `move_axis` commands default to `step_backend=digital`,
+which intentionally matches the original `jog_axis` `digitalWrite` pulse path.
+Use `--step-backend direct` only when that axis has been proven reliable.
 
 Axis mapping for this temporary commissioning mode:
 
@@ -173,6 +176,9 @@ Stepper torque notes:
 
 - Stepper current is set physically on the stepstick driver's trim potentiometer; the firmware cannot raise current on A4988/DRV8825-style plug-in drivers.
 - Use slower timing for more usable torque while moving, for example `--start-delay-us 6000 --min-delay-us 2500 --accel-steps 600 --decel-steps 600`.
+- The verified `E0` slider uses `step_backend=digital` so long moves match the original `jog_axis` pulse path. The current learned profile is a flat `12000us` step interval: `pulse_us=8`, `start_delay_us=12000`, `min_delay_us=12000`, `accel_steps=0`, `decel_steps=0`.
+- Observed slider behavior: four back-and-forth cycles of `600` steps moved on the learned flat `12000us` profile; a larger `6250` step ramped profile with `min_delay_us=5000` did not move reliably. For long tests, repeat short verified chunks instead of sending one large unverified ramp.
+- The commissioning firmware accepts very slow timing up to `start_delay_us=250000` and `min_delay_us=200000`; the PC tool raises the serial timeout from the requested step count so the command can finish normally.
 - Use `--hold` on `mega-ramps14-move`, or `mega-ramps14-enable --enabled 1`, to keep a driver energized after a move. Disable it after supervised testing to avoid heating.
 
 RAMPS MOSFET output checks:
