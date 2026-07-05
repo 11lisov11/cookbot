@@ -9,19 +9,30 @@ Confirmed from user context:
 - There are no interchangeable tools.
 - There are no absolute encoders or force/torque sensors.
 - Limit switches are present on motors/axes.
+- Vendor wiring image is stored at `docs/hardware_evidence/vendor_controller_wiring.png`.
+- The image shows three labeled arm axes or motors `A`, `B`, and `C`, plus a separate slider motor.
+- The image shows three labeled limit switches `A`, `B`, and `C`.
+- The image shows 12V power input and 12V suction output terminals.
+- The image shows a Bluetooth/UART module connection labeled RXD, TXD, GND, and VCC.
 
 Unconfirmed:
 
-- real axis count;
-- pin map;
-- driver type;
+- verified real axis count;
+- Mega STEP/DIR/EN pin map;
+- exact driver type, current limit, enable polarity, and microstepping;
 - servo or motor model;
 - link dimensions;
 - gear ratios;
 - travel limits;
 - current draw;
 - switch polarity;
+- ESTOP circuit or motion power cut path;
 - mechanical hard-stop geometry.
+
+Important: the vendor wiring image is useful evidence for connector labels, but it is
+not enough to unlock real motion. It does not prove Arduino Mega pin mapping, driver
+settings, limit switch polarity, safe homing directions, axis travel limits, or ESTOP
+behavior.
 
 Safe defaults in this repository:
 

@@ -4,19 +4,19 @@ items:
   - id: pin_map
     label: Mega pin map verified
     verified: false
-    evidence: null
+    evidence: "docs/hardware_evidence/vendor_controller_wiring.png shows vendor wiring labels A/B/C and slider motor, but it does not identify verified Mega STEP/DIR/EN pins."
   - id: driver_types
     label: Motor/servo driver types identified
     verified: false
-    evidence: null
+    evidence: "docs/hardware_evidence/vendor_controller_wiring.png shows plug-in stepper driver carriers, but exact driver model, current limit, microstepping, and enable polarity are not verified."
   - id: limit_polarity
     label: Limit switch polarity verified
     verified: false
-    evidence: null
+    evidence: "docs/hardware_evidence/vendor_controller_wiring.png shows A/B/C limit switch wiring, but normally-open/normally-closed polarity and triggered electrical state are not verified."
   - id: external_power
     label: External motor power and common ground verified
     verified: false
-    evidence: null
+    evidence: "docs/hardware_evidence/vendor_controller_wiring.png labels 12V power input and 12V suction outputs, but supply current capacity, common ground, and fused/ESTOP path are not verified."
   - id: estop
     label: Hardware ESTOP verified
     verified: false
