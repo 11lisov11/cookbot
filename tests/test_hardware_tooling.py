@@ -58,6 +58,10 @@ def test_upload_and_serial_probe_require_explicit_port():
     assert seek.returncode == 2
     assert "serial_port_required" in seek.stdout
 
+    output = run_tool("mega-ramps14-output", "--output", "D10", "--pwm", "255", "--dry-run")
+    assert output.returncode == 2
+    assert "serial_port_required" in output.stdout
+
 
 def test_ramps14_jog_dry_run_is_bounded_and_explicit():
     result = run_tool(
@@ -148,6 +152,18 @@ def test_ramps14_move_and_seek_dry_run_are_explicit():
     assert "seek_limit" in seek.stdout
     assert "A_MIN" in seek.stdout
     assert "decel_steps" in seek.stdout
+
+
+def test_ramps14_output_dry_run_is_explicit():
+    fan = run_tool("mega-ramps14-output", "--port", "COM5", "--output", "D10", "--pwm", "255", "--dry-run")
+    assert fan.returncode == 0
+    assert "set_output" in fan.stdout
+    assert '"output": "D10"' in fan.stdout
+    assert '"pwm": 255' in fan.stdout
+
+    bad_pwm = run_tool("mega-ramps14-output", "--port", "COM5", "--output", "D10", "--pwm", "999", "--dry-run")
+    assert bad_pwm.returncode == 2
+    assert "invalid_output_pwm" in bad_pwm.stdout
 
 
 def test_commissioning_and_deploy_dry_runs_do_not_touch_hardware():

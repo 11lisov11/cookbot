@@ -168,5 +168,17 @@ Axis mapping for this temporary commissioning mode:
 - `C`/`Z`: STEP 46, DIR 48, ENABLE 62
 - `SLIDER`/`E0`: STEP 26, DIR 28, ENABLE 24
 
+RAMPS MOSFET output checks:
+
+```powershell
+python scripts\hardware_tooling.py mega-ramps14-output --port COM6 --output D10 --pwm 255
+python scripts\hardware_tooling.py mega-ramps14-output --port COM6 --output D10 --pwm 0
+```
+
+Use `D10` for the fan/vacuum output shown in the vendor wiring diagram only
+after confirming the RAMPS 12V input is powered and the load polarity is
+correct. `D8` and `D9` are also available for supervised commissioning, but
+must not be treated as heaters or autonomous cooking outputs.
+
 Do not treat this mode as production motion control. Return to the locked default
 firmware after the bench check unless you are actively supervising the robot.

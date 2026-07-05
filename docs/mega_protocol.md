@@ -38,6 +38,7 @@ Response:
 - `move_axis`: bounded long move inside Mega with trapezoid profiling. Fields: `axis`, `direction`, `steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`.
 - `seek_limit`: bounded limit seek inside Mega with acceleration and per-step limit checks. Fields: `axis`, `limit`, `direction`, `max_steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`.
 - `move_axis` and `seek_limit` disable the driver at command completion.
+- `set_output`: supervised RAMPS MOSFET output control for `D8`, `D9`, or `D10`. Fields: `output`, `pwm` (`0..255`), optional `duration_ms` (`0` latches until changed). ESTOP clears all RAMPS outputs.
 - These commands are for supervised bench commissioning only. They are not autonomous motion control and must not be used by recipes or AI.
 
 ## Bench Commands
@@ -62,8 +63,11 @@ Response:
 - `invalid_move_timing`: `move_axis` timing parameters are outside the allowed range.
 - `invalid_seek_steps`: `seek_limit` max step count is outside the allowed range.
 - `invalid_seek_timing`: `seek_limit` timing parameters are outside the allowed range.
+- `invalid_output_pwm`: `set_output` PWM is outside `0..255`.
+- `invalid_output_duration`: `set_output` duration is outside the allowed range.
 - `unknown_limit`: limit ID is not one of the RAMPS commissioning limit IDs.
 - `unknown_axis`: jog axis is not one of the commissioning axis IDs.
+- `unknown_output`: RAMPS output is not one of `D8`, `D9`, or `D10`.
 - `estop_active`: ESTOP blocks the requested command.
 - `active_fault`: simulated or firmware fault blocks motion.
 

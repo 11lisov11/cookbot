@@ -27,6 +27,7 @@ void handleBenchTestOutput(const String &id, const String &line);
 void handleRamps14JogAxis(const String &id, const String &line);
 void handleRamps14MoveAxis(const String &id, const String &line);
 void handleRamps14SeekLimit(const String &id, const String &line);
+void handleRamps14SetOutput(const String &id, const String &line);
 void sendState(const String &id);
 String capabilitiesJson();
 String hardwareConfigJson();
@@ -50,6 +51,8 @@ struct Ramps14AxisPins {
 };
 
 bool resolveRamps14AxisPins(const String &axis, Ramps14AxisPins &pins);
+bool resolveRamps14OutputPin(const String &outputId, uint8_t &pin);
+void clearRamps14Outputs();
 bool readRamps14LimitActive(const String &limitId);
 unsigned int profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps);
 long runRamps14Steps(const Ramps14AxisPins &pins, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, const String &targetLimit, bool stopOnLimit, bool &limitHit);
@@ -57,6 +60,9 @@ long runRamps14Steps(const Ramps14AxisPins &pins, long direction, long maxSteps,
 
 void setup() {
   Serial.begin(115200);
+#if COOKBOT_RAMPS14_COMMISSIONING
+  clearRamps14Outputs();
+#endif
   lastCommandAt = millis();
   sendEvent("boot", "CookBot Mega skeleton ready");
 }
@@ -137,6 +143,10 @@ void handleLine(const String &line) {
     handleRamps14SeekLimit(id, line);
     return;
   }
+  if (command == "set_output") {
+    handleRamps14SetOutput(id, line);
+    return;
+  }
   if (command == "get_faults") {
     sendOk(id, "\"faults\":" + faultsJson());
     return;
@@ -208,6 +218,9 @@ void handleLine(const String &line) {
     estopActive = true;
     motionEnabled = false;
     benchUnlocked = false;
+#if COOKBOT_RAMPS14_COMMISSIONING
+    clearRamps14Outputs();
+#endif
     sendState(id);
     return;
   }
@@ -478,6 +491,58 @@ void handleRamps14SeekLimit(const String &id, const String &line) {
 #endif
 }
 
+void handleRamps14SetOutput(const String &id, const String &line) {
+#if COOKBOT_RAMPS14_COMMISSIONING
+  if (estopActive) {
+    clearRamps14Outputs();
+    sendError(id, "estop_active");
+    return;
+  }
+  if (simulatedFaultActive) {
+    clearRamps14Outputs();
+    sendError(id, "active_fault");
+    return;
+  }
+
+  String outputId = extractJsonString(line, "output");
+  long pwm = extractJsonInt(line, "pwm", -1);
+  long durationMs = extractJsonInt(line, "duration_ms", 0);
+  if (pwm < 0 || pwm > 255) {
+    sendError(id, "invalid_output_pwm");
+    return;
+  }
+  if (durationMs < 0 || durationMs > 60000) {
+    sendError(id, "invalid_output_duration");
+    return;
+  }
+
+  uint8_t pin = 255;
+  if (!resolveRamps14OutputPin(outputId, pin)) {
+    sendError(id, "unknown_output");
+    return;
+  }
+
+  pinMode(pin, OUTPUT);
+  if (pwm == 0) {
+    digitalWrite(pin, LOW);
+  } else if (pwm >= 255) {
+    digitalWrite(pin, HIGH);
+  } else {
+    analogWrite(pin, (int)pwm);
+  }
+
+  if (durationMs > 0) {
+    delay((unsigned long)durationMs);
+    digitalWrite(pin, LOW);
+  }
+
+  sendOk(id, "\"output\":\"" + outputId + "\",\"pin\":" + String(pin) + ",\"pwm\":" + String(pwm) + ",\"duration_ms\":" + String(durationMs) + ",\"latched\":" + boolJson(durationMs == 0));
+#else
+  (void)line;
+  sendError(id, "ramps14_commissioning_disabled");
+#endif
+}
+
 #if COOKBOT_RAMPS14_COMMISSIONING
 bool resolveRamps14AxisPins(const String &axis, Ramps14AxisPins &pins) {
   if (axis == "B" || axis == "X") {
@@ -505,6 +570,31 @@ bool resolveRamps14AxisPins(const String &axis, Ramps14AxisPins &pins) {
     return true;
   }
   return false;
+}
+
+bool resolveRamps14OutputPin(const String &outputId, uint8_t &pin) {
+  if (outputId == "D8") {
+    pin = 8;
+    return true;
+  }
+  if (outputId == "D9") {
+    pin = 9;
+    return true;
+  }
+  if (outputId == "D10") {
+    pin = 10;
+    return true;
+  }
+  return false;
+}
+
+void clearRamps14Outputs() {
+  pinMode(8, OUTPUT);
+  pinMode(9, OUTPUT);
+  pinMode(10, OUTPUT);
+  digitalWrite(8, LOW);
+  digitalWrite(9, LOW);
+  digitalWrite(10, LOW);
 }
 
 bool readRamps14LimitActive(const String &limitId) {
@@ -606,7 +696,7 @@ void sendState(const String &id) {
 
 String capabilitiesJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  return "{\"protocol_version\":1,\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.1.0\",\"hardware_configured\":" + configured + ",\"motion_commands_enabled\":false,\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"supported_commands\":[\"hello\",\"ping\",\"get_state\",\"get_capabilities\",\"get_hardware_config\",\"get_limit_switches\",\"self_test\",\"get_firmware_status\",\"read_inputs\",\"bench_unlock\",\"bench_test_output\",\"jog_axis\",\"move_axis\",\"seek_limit\",\"get_faults\",\"inject_fault\",\"clear_faults\",\"enable_motion\",\"home_all\",\"set_joint\",\"set_gripper\",\"estop\",\"clear_estop\"]}";
+  return "{\"protocol_version\":1,\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.1.0\",\"hardware_configured\":" + configured + ",\"motion_commands_enabled\":false,\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"supported_commands\":[\"hello\",\"ping\",\"get_state\",\"get_capabilities\",\"get_hardware_config\",\"get_limit_switches\",\"self_test\",\"get_firmware_status\",\"read_inputs\",\"bench_unlock\",\"bench_test_output\",\"jog_axis\",\"move_axis\",\"seek_limit\",\"set_output\",\"get_faults\",\"inject_fault\",\"clear_faults\",\"enable_motion\",\"home_all\",\"set_joint\",\"set_gripper\",\"estop\",\"clear_estop\"]}";
 }
 
 String hardwareConfigJson() {

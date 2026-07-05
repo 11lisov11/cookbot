@@ -77,6 +77,15 @@ def main() -> int:
     ramps14_seek.add_argument("--max-steps", type=int, default=2500)
     ramps14_seek.set_defaults(fn=cmd_mega_ramps14_seek_limit)
 
+    ramps14_output = subcommands.add_parser("mega-ramps14-output")
+    ramps14_output.add_argument("--port")
+    ramps14_output.add_argument("--baud", type=int, default=115200)
+    ramps14_output.add_argument("--output", choices=["D8", "D9", "D10"], required=True)
+    ramps14_output.add_argument("--pwm", type=int, required=True)
+    ramps14_output.add_argument("--duration-ms", type=int, default=0)
+    ramps14_output.add_argument("--dry-run", action="store_true")
+    ramps14_output.set_defaults(fn=cmd_mega_ramps14_output)
+
     commissioning = subcommands.add_parser("commissioning-check")
     commissioning.add_argument("--mega-port")
     commissioning.add_argument("--skip-adb-deploy", action="store_true")
@@ -363,6 +372,23 @@ def cmd_mega_ramps14_seek_limit(args: argparse.Namespace) -> int:
         "direction": args.direction,
         "max_steps": args.max_steps,
         **timing,
+    }
+    return _send_ramps14_motion_command(args, command)
+
+
+def cmd_mega_ramps14_output(args: argparse.Namespace) -> int:
+    if not args.port:
+        return _fail("serial_port_required", False, {}, 2)
+    if args.pwm < 0 or args.pwm > 255:
+        return _fail("invalid_output_pwm", False, {}, 2)
+    if args.duration_ms < 0 or args.duration_ms > 60000:
+        return _fail("invalid_output_duration", False, {}, 2)
+    command = {
+        "id": f"{args.output}_output",
+        "command": "set_output",
+        "output": args.output,
+        "pwm": args.pwm,
+        "duration_ms": args.duration_ms,
     }
     return _send_ramps14_motion_command(args, command)
 

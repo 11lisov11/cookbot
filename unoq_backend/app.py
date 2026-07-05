@@ -101,6 +101,7 @@ MEGA_PROTOCOL_COMMANDS = [
     "jog_axis",
     "move_axis",
     "seek_limit",
+    "set_output",
     "get_faults",
     "inject_fault",
     "clear_faults",
