@@ -400,9 +400,9 @@ void handleRamps14MoveAxis(const String &id, const String &line) {
   long steps = extractJsonInt(line, "steps", 0);
   long direction = extractJsonInt(line, "direction", 1);
   long pulseUs = extractJsonInt(line, "pulse_us", 4);
-  long startDelayUs = extractJsonInt(line, "start_delay_us", 5000);
-  long minDelayUs = extractJsonInt(line, "min_delay_us", 1600);
-  long accelSteps = extractJsonInt(line, "accel_steps", 400);
+  long startDelayUs = extractJsonInt(line, "start_delay_us", 1850);
+  long minDelayUs = extractJsonInt(line, "min_delay_us", 1850);
+  long accelSteps = extractJsonInt(line, "accel_steps", 0);
 
   if (steps < 1 || steps > 30000) {
     sendError(id, "invalid_move_steps");
@@ -444,9 +444,9 @@ void handleRamps14SeekLimit(const String &id, const String &line) {
   long maxSteps = extractJsonInt(line, "max_steps", 0);
   long direction = extractJsonInt(line, "direction", 0);
   long pulseUs = extractJsonInt(line, "pulse_us", 4);
-  long startDelayUs = extractJsonInt(line, "start_delay_us", 5000);
-  long minDelayUs = extractJsonInt(line, "min_delay_us", 1600);
-  long accelSteps = extractJsonInt(line, "accel_steps", 400);
+  long startDelayUs = extractJsonInt(line, "start_delay_us", 1850);
+  long minDelayUs = extractJsonInt(line, "min_delay_us", 1850);
+  long accelSteps = extractJsonInt(line, "accel_steps", 0);
 
   if (maxSteps < 1 || maxSteps > 40000) {
     sendError(id, "invalid_seek_steps");

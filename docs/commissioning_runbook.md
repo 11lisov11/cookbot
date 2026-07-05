@@ -138,8 +138,15 @@ Observed on the first CookBot A-axis commissioning pass:
 
 - `A` home direction toward `A_MIN`: `0`
 - `A` away direction: `1`
-- `A` reliable fast setting with acceleration: `start_delay_us=7000`, `min_delay_us=1850`, `accel_steps=500`
-- `A` repeatability check: three consecutive seeks returned `1264` steps after a `1200` step away move
+- `A` smooth reliable setting with acceleration: `start_delay_us=7000`, `min_delay_us=1850`, `accel_steps=500`
+- `A` sharp reliable setting, matching the draw-bot style of sending one motion command to the controller: `start_delay_us=1850`, `min_delay_us=1850`, `accel_steps=0`
+- `A` sharp repeatability check: after a `1200` step away move, three consecutive seeks returned `1264` steps at `1850us`
+- `A` sharp `1750us` was not repeatable: observed `1263`, `1264`, and `1265`, so do not use it as a learned default
+
+The reference draw-bot implementation in `C:\tchmp` sends FluidNC `G0`/`G1`
+commands with a feed rate and lets the controller execute the motion. CookBot's
+RAMPS commissioning commands now follow the same shape: one bounded command is
+sent to Mega, then Mega clocks the motor and checks the limit input internally.
 
 Axis mapping for this temporary commissioning mode:
 

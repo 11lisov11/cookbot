@@ -1,0 +1,34 @@
+project: CookBot
+controller: Arduino Mega + RAMPS 1.4 commissioning firmware
+axes:
+  A:
+    label: Vendor A motor / RAMPS Y channel
+    step_pin: 60
+    dir_pin: 61
+    enable_pin: 56
+    limit_id: A_MIN
+    limit_pin: 14
+    home_direction: 0
+    away_direction: 1
+    learned_from:
+      - docs/hardware_evidence/vendor_controller_wiring.png
+      - RAMPS 1.4 commissioning tests on COM6
+    learned_profiles:
+      smooth_stable:
+        away_steps: 1200
+        start_delay_us: 7000
+        min_delay_us: 1850
+        accel_steps: 500
+        repeated_seek_steps: [1264, 1264, 1264]
+      sharp_stable_default:
+        away_steps: 1200
+        start_delay_us: 1850
+        min_delay_us: 1850
+        accel_steps: 0
+        repeated_seek_steps: [1264, 1264, 1264]
+      sharp_unstable:
+        start_delay_us: 1750
+        min_delay_us: 1750
+        accel_steps: 0
+        observed_seek_steps: [1263, 1264, 1263, 1264, 1265, 1264]
+        reason: Not three identical A_MIN positions within six cycles.

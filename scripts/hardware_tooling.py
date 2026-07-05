@@ -99,9 +99,9 @@ def _add_ramps14_motion_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--axis", choices=["A", "B", "C", "SLIDER", "X", "Y", "Z", "E0"], required=True)
     parser.add_argument("--pulse-us", type=int, default=4)
-    parser.add_argument("--start-delay-us", type=int, default=7000)
+    parser.add_argument("--start-delay-us", type=int, default=1850)
     parser.add_argument("--min-delay-us", type=int, default=1850)
-    parser.add_argument("--accel-steps", type=int, default=500)
+    parser.add_argument("--accel-steps", type=int, default=0)
     parser.add_argument("--dry-run", action="store_true")
 
 
