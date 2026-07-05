@@ -133,6 +133,10 @@ void handleLine(const String &line) {
     return;
   }
   if (command == "enable_motion") {
+#if !COOKBOT_HARDWARE_CONFIGURED
+    sendError(id, "hardware_not_configured");
+    return;
+#endif
     if (simulatedFaultActive) {
       sendError(id, "active_fault");
       return;
@@ -146,6 +150,10 @@ void handleLine(const String &line) {
     return;
   }
   if (command == "home_all") {
+#if !COOKBOT_HARDWARE_CONFIGURED
+    sendError(id, "hardware_not_configured");
+    return;
+#endif
     if (simulatedFaultActive) {
       sendError(id, "active_fault");
       return;

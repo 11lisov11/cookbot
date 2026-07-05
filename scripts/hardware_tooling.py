@@ -7,12 +7,15 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def main() -> int:
@@ -206,13 +209,38 @@ def cmd_mega_serial_probe(args: argparse.Namespace) -> int:
 
     from unoq_backend.mega_protocol import build_request, decode_response, encode_request
 
-    with serial.Serial(args.port, args.baud, timeout=2.0) as handle:
+    try:
+        handle = serial.Serial(args.port, args.baud, timeout=2.0)
+    except Exception as exc:
+        return _fail(f"serial_open_failed:{args.port}:{exc}", False, {}, 3)
+
+    with handle:
+        time.sleep(2.0)
+        handle.reset_input_buffer()
         for command in ("hello", "get_firmware_status", "self_test", "read_inputs"):
-            handle.write(encode_request(build_request(command)))
-            line = handle.readline()
-            if not line:
+            request = build_request(command)
+            handle.write(encode_request(request))
+            response = None
+            bad_line = None
+            for _ in range(5):
+                line = handle.readline()
+                if not line:
+                    continue
+                try:
+                    candidate = decode_response(line)
+                except Exception:
+                    if _is_async_mega_event(line):
+                        continue
+                    bad_line = line[:80]
+                    continue
+                if candidate.id != request.id:
+                    continue
+                response = candidate
+                break
+            if response is None:
+                if bad_line:
+                    return _fail(f"bad_response:{command}:{bad_line!r}", False, {}, 5)
                 return _fail(f"no_response:{command}", False, {}, 4)
-            response = decode_response(line)
             if not response.ok:
                 return _fail(f"mega_error:{command}:{response.error}", False, {}, 5)
             print(json.dumps(response.model_dump(mode="json"), indent=2))
@@ -473,6 +501,14 @@ def _http_json(url: str) -> dict:
 def _mock_devices() -> list[str]:
     raw = os.environ.get("COOKBOT_DRY_ADB_DEVICES", "")
     return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _is_async_mega_event(line: bytes) -> bool:
+    try:
+        payload = json.loads(line.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    return isinstance(payload, dict) and "event" in payload and "ok" not in payload
 
 
 def _adb_devices(adb: str) -> list[str]:
