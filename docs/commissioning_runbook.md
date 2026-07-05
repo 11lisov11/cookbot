@@ -130,9 +130,12 @@ For real axis learning, use the firmware-side bounded commands instead of many
 small serial jogs:
 
 ```powershell
-python scripts\hardware_tooling.py mega-ramps14-move --port COM6 --axis A --direction 1 --steps 1200 --min-delay-us 1850
+python scripts\hardware_tooling.py mega-ramps14-move --port COM6 --axis A --direction 1 --steps 1200
 python scripts\hardware_tooling.py mega-ramps14-seek-limit --port COM6 --axis A --limit A_MIN --direction 0 --max-steps 2500 --min-delay-us 1850
 ```
+
+`mega-ramps14-move` uses the learned rapid profile only for `--axis A`.
+Other axes keep conservative timing until they are commissioned.
 
 Observed on the first CookBot A-axis commissioning pass:
 
@@ -145,11 +148,18 @@ Observed on the first CookBot A-axis commissioning pass:
 - `A` fast move-away setting: `start_delay_us=1850`, `min_delay_us=1000`, `accel_steps=250`; after each `1200` step away move, stable `1850us` seeks returned `1264`, `1264`, `1263`
 - `A` fast `900us` move-away was not stable enough: observed return spread of `42` steps
 - `A` fast seek toward the limit at `1600us` was not stable enough: observed `1264`, `1262`, `1265`; keep `seek_limit` default at `1850us`
+- `A` rapid CLI default after direct-port/trapezoid firmware update: `pulse_us=3`, `start_delay_us=1850`, `min_delay_us=250`, `accel_steps=0`, `decel_steps=0`
+- `A` rapid default timing: `1200` away steps completed in `0.383s`; three slow seeks returned `1264`, `1264`, `1264`
+- `A` smoother rapid fallback: `pulse_us=3`, `min_delay_us=250`, `accel_steps=50`, `decel_steps=50`; `1200` away steps completed in `0.475s`, seeks returned `1264`, `1264`, `1264`
+- `A` CLI-default confirmation: a plain `mega-ramps14-move --axis A --direction 1 --steps 1200` returned to `A_MIN` in `1264` seek steps
 
 The reference draw-bot implementation in `C:\tchmp` sends FluidNC `G0`/`G1`
 commands with a feed rate and lets the controller execute the motion. CookBot's
 RAMPS commissioning commands now follow the same shape: one bounded command is
 sent to Mega, then Mega clocks the motor and checks the limit input internally.
+The commissioning firmware now uses direct port writes for STEP pulses and
+supports `decel_steps` for fixed moves; limit seeks still use the slower
+`1850us` profile for repeatability.
 
 Axis mapping for this temporary commissioning mode:
 

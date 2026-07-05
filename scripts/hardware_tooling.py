@@ -65,13 +65,13 @@ def main() -> int:
     ramps14_jog.set_defaults(fn=cmd_mega_ramps14_jog)
 
     ramps14_move = subcommands.add_parser("mega-ramps14-move")
-    _add_ramps14_motion_args(ramps14_move, default_min_delay_us=1000, default_accel_steps=250)
+    _add_ramps14_motion_args(ramps14_move)
     ramps14_move.add_argument("--direction", type=int, choices=[0, 1], required=True)
     ramps14_move.add_argument("--steps", type=int, default=1200)
     ramps14_move.set_defaults(fn=cmd_mega_ramps14_move)
 
     ramps14_seek = subcommands.add_parser("mega-ramps14-seek-limit")
-    _add_ramps14_motion_args(ramps14_seek, default_min_delay_us=1850, default_accel_steps=0)
+    _add_ramps14_motion_args(ramps14_seek)
     ramps14_seek.add_argument("--direction", type=int, choices=[0, 1], required=True)
     ramps14_seek.add_argument("--limit", choices=["A_MIN", "B_MIN", "C_MIN"], required=True)
     ramps14_seek.add_argument("--max-steps", type=int, default=2500)
@@ -94,19 +94,15 @@ def main() -> int:
     return int(args.fn(args))
 
 
-def _add_ramps14_motion_args(
-    parser: argparse.ArgumentParser,
-    *,
-    default_min_delay_us: int,
-    default_accel_steps: int,
-) -> None:
+def _add_ramps14_motion_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--port")
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--axis", choices=["A", "B", "C", "SLIDER", "X", "Y", "Z", "E0"], required=True)
-    parser.add_argument("--pulse-us", type=int, default=4)
-    parser.add_argument("--start-delay-us", type=int, default=1850)
-    parser.add_argument("--min-delay-us", type=int, default=default_min_delay_us)
-    parser.add_argument("--accel-steps", type=int, default=default_accel_steps)
+    parser.add_argument("--pulse-us", type=int)
+    parser.add_argument("--start-delay-us", type=int)
+    parser.add_argument("--min-delay-us", type=int)
+    parser.add_argument("--accel-steps", type=int)
+    parser.add_argument("--decel-steps", type=int)
     parser.add_argument("--dry-run", action="store_true")
 
 
@@ -341,16 +337,14 @@ def cmd_mega_ramps14_move(args: argparse.Namespace) -> int:
         return _fail("serial_port_required", False, {}, 2)
     if args.steps < 1 or args.steps > 30000:
         return _fail("invalid_move_steps", False, {}, 2)
+    timing = _resolve_ramps14_timing(args, "move")
     command = {
         "id": f"{args.axis}_move",
         "command": "move_axis",
         "axis": args.axis,
         "direction": args.direction,
         "steps": args.steps,
-        "pulse_us": args.pulse_us,
-        "start_delay_us": args.start_delay_us,
-        "min_delay_us": args.min_delay_us,
-        "accel_steps": args.accel_steps,
+        **timing,
     }
     return _send_ramps14_motion_command(args, command)
 
@@ -360,6 +354,7 @@ def cmd_mega_ramps14_seek_limit(args: argparse.Namespace) -> int:
         return _fail("serial_port_required", False, {}, 2)
     if args.max_steps < 1 or args.max_steps > 40000:
         return _fail("invalid_seek_steps", False, {}, 2)
+    timing = _resolve_ramps14_timing(args, "seek")
     command = {
         "id": f"{args.axis}_{args.limit}_seek",
         "command": "seek_limit",
@@ -367,12 +362,46 @@ def cmd_mega_ramps14_seek_limit(args: argparse.Namespace) -> int:
         "limit": args.limit,
         "direction": args.direction,
         "max_steps": args.max_steps,
-        "pulse_us": args.pulse_us,
-        "start_delay_us": args.start_delay_us,
-        "min_delay_us": args.min_delay_us,
-        "accel_steps": args.accel_steps,
+        **timing,
     }
     return _send_ramps14_motion_command(args, command)
+
+
+def _resolve_ramps14_timing(args: argparse.Namespace, purpose: str) -> dict[str, int]:
+    if purpose == "seek":
+        defaults = {
+            "pulse_us": 4,
+            "start_delay_us": 1850,
+            "min_delay_us": 1850,
+            "accel_steps": 0,
+            "decel_steps": 0,
+        }
+    elif args.axis == "A":
+        # Learned on the connected CookBot A axis on COM6. Other axes keep
+        # conservative defaults until their limits and loads are commissioned.
+        defaults = {
+            "pulse_us": 3,
+            "start_delay_us": 1850,
+            "min_delay_us": 250,
+            "accel_steps": 0,
+            "decel_steps": 0,
+        }
+    else:
+        defaults = {
+            "pulse_us": 4,
+            "start_delay_us": 1850,
+            "min_delay_us": 1000,
+            "accel_steps": 250,
+            "decel_steps": 250,
+        }
+
+    return {
+        "pulse_us": args.pulse_us if args.pulse_us is not None else defaults["pulse_us"],
+        "start_delay_us": args.start_delay_us if args.start_delay_us is not None else defaults["start_delay_us"],
+        "min_delay_us": args.min_delay_us if args.min_delay_us is not None else defaults["min_delay_us"],
+        "accel_steps": args.accel_steps if args.accel_steps is not None else defaults["accel_steps"],
+        "decel_steps": args.decel_steps if args.decel_steps is not None else defaults["decel_steps"],
+    }
 
 
 def _send_ramps14_motion_command(args: argparse.Namespace, command: dict) -> int:

@@ -26,7 +26,7 @@ axes:
         min_delay_us: 1850
         accel_steps: 0
         repeated_seek_steps: [1264, 1264, 1264]
-      fast_move_away_default:
+      fast_move_away_previous_default:
         away_steps: 1200
         start_delay_us: 1850
         min_delay_us: 1000
@@ -36,6 +36,31 @@ axes:
           min_delay_us: 1850
           accel_steps: 0
         repeated_seek_steps: [1264, 1264, 1263]
+      rapid_a_cli_default:
+        away_steps: 1200
+        pulse_us: 3
+        start_delay_us: 1850
+        min_delay_us: 250
+        accel_steps: 0
+        decel_steps: 0
+        move_elapsed_seconds: [0.383, 0.383, 0.383]
+        measured_by_seek_profile:
+          pulse_us: 4
+          start_delay_us: 1850
+          min_delay_us: 1850
+          accel_steps: 0
+          decel_steps: 0
+        repeated_seek_steps: [1264, 1264, 1264]
+        confirmed_cli_default_seek_steps: 1264
+      rapid_a_smoother_stable:
+        away_steps: 1200
+        pulse_us: 3
+        start_delay_us: 1850
+        min_delay_us: 250
+        accel_steps: 50
+        decel_steps: 50
+        move_elapsed_seconds: [0.475, 0.475, 0.475]
+        repeated_seek_steps: [1264, 1264, 1264]
       sharp_unstable:
         start_delay_us: 1750
         min_delay_us: 1750

@@ -81,6 +81,34 @@ def test_ramps14_jog_dry_run_is_bounded_and_explicit():
 
 
 def test_ramps14_move_and_seek_dry_run_are_explicit():
+    default_a_move = run_tool(
+        "mega-ramps14-move",
+        "--port",
+        "COM5",
+        "--axis",
+        "A",
+        "--direction",
+        "1",
+        "--dry-run",
+    )
+    assert default_a_move.returncode == 0
+    assert '"min_delay_us": 250' in default_a_move.stdout
+    assert '"accel_steps": 0' in default_a_move.stdout
+
+    default_b_move = run_tool(
+        "mega-ramps14-move",
+        "--port",
+        "COM5",
+        "--axis",
+        "B",
+        "--direction",
+        "1",
+        "--dry-run",
+    )
+    assert default_b_move.returncode == 0
+    assert '"min_delay_us": 1000' in default_b_move.stdout
+    assert '"accel_steps": 250' in default_b_move.stdout
+
     move = run_tool(
         "mega-ramps14-move",
         "--port",
@@ -98,6 +126,7 @@ def test_ramps14_move_and_seek_dry_run_are_explicit():
     assert move.returncode == 0
     assert "move_axis" in move.stdout
     assert "1850" in move.stdout
+    assert "decel_steps" in move.stdout
 
     seek = run_tool(
         "mega-ramps14-seek-limit",
@@ -118,6 +147,7 @@ def test_ramps14_move_and_seek_dry_run_are_explicit():
     assert seek.returncode == 0
     assert "seek_limit" in seek.stdout
     assert "A_MIN" in seek.stdout
+    assert "decel_steps" in seek.stdout
 
 
 def test_commissioning_and_deploy_dry_runs_do_not_touch_hardware():

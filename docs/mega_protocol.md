@@ -35,8 +35,8 @@ Response:
 - Request fields are top-level JSON fields for the commissioning sketch: `axis`, `steps`, `direction`, `pulse_us`, and `step_delay_us`.
 - Supported axes are `A`, `B`, `C`, `SLIDER`, and aliases `X`, `Y`, `Z`, `E0`.
 - `steps` is capped at 25 per command. Drivers are disabled immediately after each jog pulse.
-- `move_axis`: bounded long move inside Mega with acceleration. Fields: `axis`, `direction`, `steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`.
-- `seek_limit`: bounded limit seek inside Mega with acceleration and per-step limit checks. Fields: `axis`, `limit`, `direction`, `max_steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`.
+- `move_axis`: bounded long move inside Mega with trapezoid profiling. Fields: `axis`, `direction`, `steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`.
+- `seek_limit`: bounded limit seek inside Mega with acceleration and per-step limit checks. Fields: `axis`, `limit`, `direction`, `max_steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`.
 - `move_axis` and `seek_limit` disable the driver at command completion.
 - These commands are for supervised bench commissioning only. They are not autonomous motion control and must not be used by recipes or AI.
 
