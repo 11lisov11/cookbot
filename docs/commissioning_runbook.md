@@ -108,3 +108,30 @@ Expected result:
 - `ok` is `true`
 - `hardware_readiness.ready_for_real_motion` is `false`
 - `real_motion_locked` remains true in hardware doctor output
+
+## 9. RAMPS 1.4 Micro-Jog Commissioning
+
+If the connected shield is physically verified as RAMPS 1.4-style hardware, a
+temporary jog-only firmware can be built and uploaded:
+
+```powershell
+python -m platformio run -e cookbot_mega2560_ramps14_commissioning
+python scripts\hardware_tooling.py mega-platformio-upload --env cookbot_mega2560_ramps14_commissioning --port COM6
+```
+
+The jog command is deliberately tiny and manual. It does not home, queue motion,
+run recipes, or keep drivers enabled after the pulse:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\mega_ramps14_jog.ps1 --port COM6 --axis B --steps 8 --return-to-start
+```
+
+Axis mapping for this temporary commissioning mode:
+
+- `B`/`X`: STEP 54, DIR 55, ENABLE 38
+- `A`/`Y`: STEP 60, DIR 61, ENABLE 56
+- `C`/`Z`: STEP 46, DIR 48, ENABLE 62
+- `SLIDER`/`E0`: STEP 26, DIR 28, ENABLE 24
+
+Do not treat this mode as production motion control. Return to the locked default
+firmware after the bench check unless you are actively supervising the robot.

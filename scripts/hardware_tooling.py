@@ -54,6 +54,16 @@ def main() -> int:
     serial_probe.add_argument("--dry-run", action="store_true")
     serial_probe.set_defaults(fn=cmd_mega_serial_probe)
 
+    ramps14_jog = subcommands.add_parser("mega-ramps14-jog")
+    ramps14_jog.add_argument("--port")
+    ramps14_jog.add_argument("--baud", type=int, default=115200)
+    ramps14_jog.add_argument("--axis", choices=["A", "B", "C", "SLIDER", "X", "Y", "Z", "E0"], required=True)
+    ramps14_jog.add_argument("--steps", type=int, default=8)
+    ramps14_jog.add_argument("--direction", type=int, choices=[0, 1], default=1)
+    ramps14_jog.add_argument("--return-to-start", action="store_true")
+    ramps14_jog.add_argument("--dry-run", action="store_true")
+    ramps14_jog.set_defaults(fn=cmd_mega_ramps14_jog)
+
     commissioning = subcommands.add_parser("commissioning-check")
     commissioning.add_argument("--mega-port")
     commissioning.add_argument("--skip-adb-deploy", action="store_true")
@@ -247,6 +257,56 @@ def cmd_mega_serial_probe(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_mega_ramps14_jog(args: argparse.Namespace) -> int:
+    if not args.port:
+        return _fail("serial_port_required", False, {}, 2)
+    if args.steps < 1 or args.steps > 25:
+        return _fail("invalid_jog_steps:max_25", False, {}, 2)
+    commands = [
+        {
+            "id": f"{args.axis}_jog",
+            "command": "jog_axis",
+            "axis": args.axis,
+            "steps": args.steps,
+            "direction": args.direction,
+            "pulse_us": 4,
+            "step_delay_us": 3000,
+        }
+    ]
+    if args.return_to_start:
+        commands.append({**commands[0], "id": f"{args.axis}_return", "direction": 0 if args.direction else 1})
+    if args.dry_run:
+        print("DRY RUN:", json.dumps({"port": args.port, "baud": args.baud, "commands": commands}, indent=2))
+        return 0
+
+    try:
+        import serial  # type: ignore
+    except ImportError:
+        return _fail("pyserial_not_installed", False, {}, 3)
+
+    try:
+        handle = serial.Serial(args.port, args.baud, timeout=1.0)
+    except Exception as exc:
+        return _fail(f"serial_open_failed:{args.port}:{exc}", False, {}, 3)
+
+    with handle:
+        time.sleep(2.0)
+        handle.reset_input_buffer()
+        status = _send_raw_mega_json(handle, {"id": "jog_status", "command": "get_firmware_status"})
+        if not status.get("ok"):
+            return _fail(f"status_failed:{status}", False, {}, 4)
+        firmware_status = status.get("data", {}).get("firmware_status", {})
+        if not firmware_status.get("ramps14_commissioning"):
+            return _fail("ramps14_commissioning_not_enabled", False, firmware_status, 5)
+        for command in commands:
+            response = _send_raw_mega_json(handle, command)
+            print(json.dumps(response, indent=2))
+            if not response.get("ok"):
+                return _fail(f"jog_failed:{response.get('error')}", False, response, 6)
+            time.sleep(0.25)
+    return 0
+
+
 def cmd_commissioning_check(args: argparse.Namespace) -> int:
     if args.dry_run:
         print("DRY RUN: commissioning sequence")
@@ -323,6 +383,8 @@ def _hardware_doctor_report(args: argparse.Namespace) -> dict:
         "docs/release_bundle.md",
         "scripts/hardware_doctor.ps1",
         "scripts/hardware_doctor.sh",
+        "scripts/mega_ramps14_jog.ps1",
+        "scripts/mega_ramps14_jog.sh",
         "scripts/build_release.ps1",
         "scripts/build_release.sh",
         "scripts/validate_release.ps1",
@@ -509,6 +571,28 @@ def _is_async_mega_event(line: bytes) -> bool:
     except (UnicodeDecodeError, json.JSONDecodeError):
         return False
     return isinstance(payload, dict) and "event" in payload and "ok" not in payload
+
+
+def _send_raw_mega_json(handle, payload: dict) -> dict:
+    handle.write((json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8"))
+    deadline = time.time() + 3.0
+    bad_line: bytes | None = None
+    while time.time() < deadline:
+        line = handle.readline()
+        if not line:
+            continue
+        try:
+            response = json.loads(line.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            if _is_async_mega_event(line):
+                continue
+            bad_line = line[:80]
+            continue
+        if response.get("id") == payload.get("id"):
+            return response
+    if bad_line:
+        return {"ok": False, "error": f"bad_response:{bad_line!r}", "data": {}}
+    return {"ok": False, "error": "no_response", "data": {}}
 
 
 def _adb_devices(adb: str) -> list[str]:

@@ -46,6 +46,31 @@ def test_upload_and_serial_probe_require_explicit_port():
     assert probe.returncode == 2
     assert "serial_port_required" in probe.stdout
 
+    jog = run_tool("mega-ramps14-jog", "--axis", "B", "--dry-run")
+    assert jog.returncode == 2
+    assert "serial_port_required" in jog.stdout
+
+
+def test_ramps14_jog_dry_run_is_bounded_and_explicit():
+    result = run_tool(
+        "mega-ramps14-jog",
+        "--port",
+        "COM5",
+        "--axis",
+        "B",
+        "--steps",
+        "8",
+        "--return-to-start",
+        "--dry-run",
+    )
+    assert result.returncode == 0
+    assert "jog_axis" in result.stdout
+    assert "B_return" in result.stdout
+
+    too_large = run_tool("mega-ramps14-jog", "--port", "COM5", "--axis", "B", "--steps", "200", "--dry-run")
+    assert too_large.returncode == 2
+    assert "invalid_jog_steps" in too_large.stdout
+
 
 def test_commissioning_and_deploy_dry_runs_do_not_touch_hardware():
     deploy = run_tool("unoq-adb-deploy", "--dry-run")

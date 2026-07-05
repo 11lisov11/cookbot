@@ -29,6 +29,14 @@ Response:
 - `clear_estop`: clears ESTOP and requires re-home.
 - `enable_motion`, `home_all`, `set_joint`, `set_gripper`: motion lifecycle commands. Real Mega firmware keeps real motion disabled until hardware readiness is verified.
 
+## RAMPS 1.4 Commissioning Command
+
+- `jog_axis`: temporary jog-only command available only when firmware is built with `COOKBOT_RAMPS14_COMMISSIONING=1`.
+- Request fields are top-level JSON fields for the commissioning sketch: `axis`, `steps`, `direction`, `pulse_us`, and `step_delay_us`.
+- Supported axes are `A`, `B`, `C`, `SLIDER`, and aliases `X`, `Y`, `Z`, `E0`.
+- `steps` is capped at 25 per command. Drivers are disabled immediately after each jog pulse.
+- This command is for supervised bench commissioning only. It is not autonomous motion control and must not be used by recipes or AI.
+
 ## Bench Commands
 
 - `bench_unlock` requires `{"confirm":"BENCH_ONLY"}` and only works when `COOKBOT_BENCH_OUTPUTS_ENABLED=1`.
@@ -44,6 +52,10 @@ Response:
 - `bench_locked`: a bench output was requested without unlock.
 - `invalid_bench_pin`: pin is outside Mega digital pin range.
 - `invalid_bench_duration`: pulse duration is outside the allowed short test window.
+- `ramps14_commissioning_disabled`: `jog_axis` was sent to non-commissioning firmware.
+- `invalid_jog_steps`: jog step count is outside the allowed 1..25 range.
+- `invalid_jog_timing`: jog pulse timing is outside the allowed range.
+- `unknown_axis`: jog axis is not one of the commissioning axis IDs.
 - `estop_active`: ESTOP blocks the requested command.
 - `active_fault`: simulated or firmware fault blocks motion.
 

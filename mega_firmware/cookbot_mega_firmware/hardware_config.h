@@ -13,13 +13,28 @@
 #define COOKBOT_BENCH_OUTPUTS_ENABLED 0
 #endif
 
+// Temporary commissioning mode for RAMPS 1.4-style Mega shields. It is not a
+// production motion controller: it only permits tiny manual jog pulses and must
+// stay off in normal builds.
+#ifndef COOKBOT_RAMPS14_COMMISSIONING
+#define COOKBOT_RAMPS14_COMMISSIONING 0
+#endif
+
 // Placeholder only. Do not use these as real pins.
 #ifndef COOKBOT_AXIS_COUNT
+#if COOKBOT_RAMPS14_COMMISSIONING
+#define COOKBOT_AXIS_COUNT 4
+#else
 #define COOKBOT_AXIS_COUNT 0
+#endif
 #endif
 
 #ifndef COOKBOT_LIMIT_SWITCH_COUNT
+#if COOKBOT_RAMPS14_COMMISSIONING
+#define COOKBOT_LIMIT_SWITCH_COUNT 3
+#else
 #define COOKBOT_LIMIT_SWITCH_COUNT 0
+#endif
 #endif
 
 // Hardware placeholders. Replace only after physical inspection, continuity

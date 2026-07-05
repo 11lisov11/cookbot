@@ -20,6 +20,7 @@ def test_schema_endpoint_exposes_core_contracts(client):
     assert "ErrorTaxonomy" in body
     assert "MegaProtocolCommands" in body
     assert "bench_test_output" in body["MegaProtocolCommands"]
+    assert "jog_axis" in body["MegaProtocolCommands"]
 
 
 def test_hardware_protocol_and_automation_docs_exist():
@@ -31,5 +32,7 @@ def test_hardware_protocol_and_automation_docs_exist():
     assert Path(".vscode/tasks.json").exists()
     assert Path("scripts/hardware_doctor.ps1").exists()
     assert Path("scripts/hardware_doctor.sh").exists()
+    assert Path("scripts/mega_ramps14_jog.ps1").exists()
+    assert Path("scripts/mega_ramps14_jog.sh").exists()
     assert Path("scripts/build_release.ps1").exists()
     assert Path("scripts/validate_release.ps1").exists()
