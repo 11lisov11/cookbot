@@ -57,7 +57,7 @@ def main() -> int:
     ramps14_jog = subcommands.add_parser("mega-ramps14-jog")
     ramps14_jog.add_argument("--port")
     ramps14_jog.add_argument("--baud", type=int, default=115200)
-    ramps14_jog.add_argument("--axis", choices=["A", "B", "C", "SLIDER", "X", "Y", "Z", "E0"], required=True)
+    ramps14_jog.add_argument("--axis", choices=["A", "B", "C", "SLIDER", "X", "Y", "Z", "E0", "E1"], required=True)
     ramps14_jog.add_argument("--steps", type=int, default=8)
     ramps14_jog.add_argument("--direction", type=int, choices=[0, 1], default=1)
     ramps14_jog.add_argument("--return-to-start", action="store_true")
@@ -68,6 +68,7 @@ def main() -> int:
     _add_ramps14_motion_args(ramps14_move)
     ramps14_move.add_argument("--direction", type=int, choices=[0, 1], required=True)
     ramps14_move.add_argument("--steps", type=int, default=1200)
+    ramps14_move.add_argument("--hold", action="store_true")
     ramps14_move.set_defaults(fn=cmd_mega_ramps14_move)
 
     ramps14_seek = subcommands.add_parser("mega-ramps14-seek-limit")
@@ -85,6 +86,14 @@ def main() -> int:
     ramps14_output.add_argument("--duration-ms", type=int, default=0)
     ramps14_output.add_argument("--dry-run", action="store_true")
     ramps14_output.set_defaults(fn=cmd_mega_ramps14_output)
+
+    ramps14_enable = subcommands.add_parser("mega-ramps14-enable")
+    ramps14_enable.add_argument("--port")
+    ramps14_enable.add_argument("--baud", type=int, default=115200)
+    ramps14_enable.add_argument("--axis", choices=["A", "B", "C", "SLIDER", "X", "Y", "Z", "E0", "E1"], required=True)
+    ramps14_enable.add_argument("--enabled", type=int, choices=[0, 1], required=True)
+    ramps14_enable.add_argument("--dry-run", action="store_true")
+    ramps14_enable.set_defaults(fn=cmd_mega_ramps14_enable)
 
     commissioning = subcommands.add_parser("commissioning-check")
     commissioning.add_argument("--mega-port")
@@ -106,7 +115,7 @@ def main() -> int:
 def _add_ramps14_motion_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--port")
     parser.add_argument("--baud", type=int, default=115200)
-    parser.add_argument("--axis", choices=["A", "B", "C", "SLIDER", "X", "Y", "Z", "E0"], required=True)
+    parser.add_argument("--axis", choices=["A", "B", "C", "SLIDER", "X", "Y", "Z", "E0", "E1"], required=True)
     parser.add_argument("--pulse-us", type=int)
     parser.add_argument("--start-delay-us", type=int)
     parser.add_argument("--min-delay-us", type=int)
@@ -353,6 +362,7 @@ def cmd_mega_ramps14_move(args: argparse.Namespace) -> int:
         "axis": args.axis,
         "direction": args.direction,
         "steps": args.steps,
+        "hold": 1 if args.hold else 0,
         **timing,
     }
     return _send_ramps14_motion_command(args, command)
@@ -389,6 +399,18 @@ def cmd_mega_ramps14_output(args: argparse.Namespace) -> int:
         "output": args.output,
         "pwm": args.pwm,
         "duration_ms": args.duration_ms,
+    }
+    return _send_ramps14_motion_command(args, command)
+
+
+def cmd_mega_ramps14_enable(args: argparse.Namespace) -> int:
+    if not args.port:
+        return _fail("serial_port_required", False, {}, 2)
+    command = {
+        "id": f"{args.axis}_enable",
+        "command": "set_axis_enabled",
+        "axis": args.axis,
+        "enabled": args.enabled,
     }
     return _send_ramps14_motion_command(args, command)
 

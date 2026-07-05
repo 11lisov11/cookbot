@@ -166,7 +166,14 @@ Axis mapping for this temporary commissioning mode:
 - `B`/`X`: STEP 54, DIR 55, ENABLE 38
 - `A`/`Y`: STEP 60, DIR 61, ENABLE 56
 - `C`/`Z`: STEP 46, DIR 48, ENABLE 62
-- `SLIDER`/`E0`: STEP 26, DIR 28, ENABLE 24
+- `SLIDER`/`E0`: STEP 26, DIR 28, ENABLE 24. This is the verified slider channel on the connected controller.
+- `E1`: STEP 36, DIR 34, ENABLE 30. This remains available by explicit name only.
+
+Stepper torque notes:
+
+- Stepper current is set physically on the stepstick driver's trim potentiometer; the firmware cannot raise current on A4988/DRV8825-style plug-in drivers.
+- Use slower timing for more usable torque while moving, for example `--start-delay-us 6000 --min-delay-us 2500 --accel-steps 600 --decel-steps 600`.
+- Use `--hold` on `mega-ramps14-move`, or `mega-ramps14-enable --enabled 1`, to keep a driver energized after a move. Disable it after supervised testing to avoid heating.
 
 RAMPS MOSFET output checks:
 

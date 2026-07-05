@@ -62,6 +62,10 @@ def test_upload_and_serial_probe_require_explicit_port():
     assert output.returncode == 2
     assert "serial_port_required" in output.stdout
 
+    enable = run_tool("mega-ramps14-enable", "--axis", "E0", "--enabled", "1", "--dry-run")
+    assert enable.returncode == 2
+    assert "serial_port_required" in enable.stdout
+
 
 def test_ramps14_jog_dry_run_is_bounded_and_explicit():
     result = run_tool(
@@ -125,12 +129,14 @@ def test_ramps14_move_and_seek_dry_run_are_explicit():
         "1200",
         "--min-delay-us",
         "1850",
+        "--hold",
         "--dry-run",
     )
     assert move.returncode == 0
     assert "move_axis" in move.stdout
     assert "1850" in move.stdout
     assert "decel_steps" in move.stdout
+    assert '"hold": 1' in move.stdout
 
     seek = run_tool(
         "mega-ramps14-seek-limit",
@@ -164,6 +170,14 @@ def test_ramps14_output_dry_run_is_explicit():
     bad_pwm = run_tool("mega-ramps14-output", "--port", "COM5", "--output", "D10", "--pwm", "999", "--dry-run")
     assert bad_pwm.returncode == 2
     assert "invalid_output_pwm" in bad_pwm.stdout
+
+
+def test_ramps14_enable_dry_run_is_explicit():
+    enable = run_tool("mega-ramps14-enable", "--port", "COM5", "--axis", "E0", "--enabled", "1", "--dry-run")
+    assert enable.returncode == 0
+    assert "set_axis_enabled" in enable.stdout
+    assert '"axis": "E0"' in enable.stdout
+    assert '"enabled": 1' in enable.stdout
 
 
 def test_commissioning_and_deploy_dry_runs_do_not_touch_hardware():

@@ -28,6 +28,7 @@ void handleRamps14JogAxis(const String &id, const String &line);
 void handleRamps14MoveAxis(const String &id, const String &line);
 void handleRamps14SeekLimit(const String &id, const String &line);
 void handleRamps14SetOutput(const String &id, const String &line);
+void handleRamps14SetAxisEnabled(const String &id, const String &line);
 void sendState(const String &id);
 String capabilitiesJson();
 String hardwareConfigJson();
@@ -52,15 +53,17 @@ struct Ramps14AxisPins {
 
 bool resolveRamps14AxisPins(const String &axis, Ramps14AxisPins &pins);
 bool resolveRamps14OutputPin(const String &outputId, uint8_t &pin);
+void clearRamps14AxisEnables();
 void clearRamps14Outputs();
 bool readRamps14LimitActive(const String &limitId);
 unsigned int profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps);
-long runRamps14Steps(const Ramps14AxisPins &pins, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, const String &targetLimit, bool stopOnLimit, bool &limitHit);
+long runRamps14Steps(const Ramps14AxisPins &pins, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool holdEnabled, const String &targetLimit, bool stopOnLimit, bool &limitHit);
 #endif
 
 void setup() {
   Serial.begin(115200);
 #if COOKBOT_RAMPS14_COMMISSIONING
+  clearRamps14AxisEnables();
   clearRamps14Outputs();
 #endif
   lastCommandAt = millis();
@@ -147,6 +150,10 @@ void handleLine(const String &line) {
     handleRamps14SetOutput(id, line);
     return;
   }
+  if (command == "set_axis_enabled") {
+    handleRamps14SetAxisEnabled(id, line);
+    return;
+  }
   if (command == "get_faults") {
     sendOk(id, "\"faults\":" + faultsJson());
     return;
@@ -219,6 +226,7 @@ void handleLine(const String &line) {
     motionEnabled = false;
     benchUnlocked = false;
 #if COOKBOT_RAMPS14_COMMISSIONING
+    clearRamps14AxisEnables();
     clearRamps14Outputs();
 #endif
     sendState(id);
@@ -371,6 +379,10 @@ void handleRamps14JogAxis(const String &id, const String &line) {
     stepPin = 26;
     dirPin = 28;
     enablePin = 24;
+  } else if (axis == "E1") {
+    stepPin = 36;
+    dirPin = 34;
+    enablePin = 30;
   } else {
     sendError(id, "unknown_axis");
     return;
@@ -417,6 +429,7 @@ void handleRamps14MoveAxis(const String &id, const String &line) {
   long minDelayUs = extractJsonInt(line, "min_delay_us", 1000);
   long accelSteps = extractJsonInt(line, "accel_steps", 250);
   long decelSteps = extractJsonInt(line, "decel_steps", accelSteps);
+  long hold = extractJsonInt(line, "hold", 0);
 
   if (steps < 1 || steps > 30000) {
     sendError(id, "invalid_move_steps");
@@ -424,6 +437,10 @@ void handleRamps14MoveAxis(const String &id, const String &line) {
   }
   if (pulseUs < 2 || pulseUs > 20 || minDelayUs < 250 || minDelayUs > 20000 || startDelayUs < minDelayUs || startDelayUs > 30000 || accelSteps < 0 || accelSteps > 10000 || decelSteps < 0 || decelSteps > 10000) {
     sendError(id, "invalid_move_timing");
+    return;
+  }
+  if (hold < 0 || hold > 1) {
+    sendError(id, "invalid_hold");
     return;
   }
 
@@ -434,8 +451,8 @@ void handleRamps14MoveAxis(const String &id, const String &line) {
   }
 
   bool limitHit = false;
-  long moved = runRamps14Steps(pins, direction, steps, pulseUs, startDelayUs, minDelayUs, accelSteps, decelSteps, "", false, limitHit);
-  sendOk(id, "\"moved\":true,\"axis\":\"" + axis + "\",\"steps\":" + String(moved) + ",\"direction\":" + String(direction == 0 ? 0 : 1) + ",\"motion_profile\":\"trapezoid\",\"min_delay_us\":" + String(minDelayUs) + ",\"start_delay_us\":" + String(startDelayUs) + ",\"accel_steps\":" + String(accelSteps) + ",\"decel_steps\":" + String(decelSteps));
+  long moved = runRamps14Steps(pins, direction, steps, pulseUs, startDelayUs, minDelayUs, accelSteps, decelSteps, hold == 1, "", false, limitHit);
+  sendOk(id, "\"moved\":true,\"axis\":\"" + axis + "\",\"steps\":" + String(moved) + ",\"direction\":" + String(direction == 0 ? 0 : 1) + ",\"motion_profile\":\"trapezoid\",\"min_delay_us\":" + String(minDelayUs) + ",\"start_delay_us\":" + String(startDelayUs) + ",\"accel_steps\":" + String(accelSteps) + ",\"decel_steps\":" + String(decelSteps) + ",\"hold\":" + boolJson(hold == 1));
 #else
   (void)line;
   sendError(id, "ramps14_commissioning_disabled");
@@ -483,7 +500,7 @@ void handleRamps14SeekLimit(const String &id, const String &line) {
   }
 
   bool limitHit = false;
-  long moved = runRamps14Steps(pins, direction, maxSteps, pulseUs, startDelayUs, minDelayUs, accelSteps, decelSteps, limitId, true, limitHit);
+  long moved = runRamps14Steps(pins, direction, maxSteps, pulseUs, startDelayUs, minDelayUs, accelSteps, decelSteps, false, limitId, true, limitHit);
   sendOk(id, "\"limit_hit\":" + boolJson(limitHit) + ",\"axis\":\"" + axis + "\",\"limit\":\"" + limitId + "\",\"steps\":" + String(moved) + ",\"direction\":" + String(direction == 0 ? 0 : 1) + ",\"motion_profile\":\"trapezoid\",\"min_delay_us\":" + String(minDelayUs) + ",\"start_delay_us\":" + String(startDelayUs) + ",\"accel_steps\":" + String(accelSteps) + ",\"decel_steps\":" + String(decelSteps));
 #else
   (void)line;
@@ -543,6 +560,41 @@ void handleRamps14SetOutput(const String &id, const String &line) {
 #endif
 }
 
+void handleRamps14SetAxisEnabled(const String &id, const String &line) {
+#if COOKBOT_RAMPS14_COMMISSIONING
+  if (estopActive) {
+    clearRamps14AxisEnables();
+    sendError(id, "estop_active");
+    return;
+  }
+  if (simulatedFaultActive) {
+    clearRamps14AxisEnables();
+    sendError(id, "active_fault");
+    return;
+  }
+
+  String axis = extractJsonString(line, "axis");
+  long enabled = extractJsonInt(line, "enabled", -1);
+  if (enabled < 0 || enabled > 1) {
+    sendError(id, "invalid_axis_enabled");
+    return;
+  }
+
+  Ramps14AxisPins pins;
+  if (!resolveRamps14AxisPins(axis, pins)) {
+    sendError(id, "unknown_axis");
+    return;
+  }
+
+  pinMode(pins.enablePin, OUTPUT);
+  digitalWrite(pins.enablePin, enabled == 1 ? LOW : HIGH);
+  sendOk(id, "\"axis\":\"" + axis + "\",\"enable_pin\":" + String(pins.enablePin) + ",\"enabled\":" + boolJson(enabled == 1));
+#else
+  (void)line;
+  sendError(id, "ramps14_commissioning_disabled");
+#endif
+}
+
 #if COOKBOT_RAMPS14_COMMISSIONING
 bool resolveRamps14AxisPins(const String &axis, Ramps14AxisPins &pins) {
   if (axis == "B" || axis == "X") {
@@ -569,7 +621,21 @@ bool resolveRamps14AxisPins(const String &axis, Ramps14AxisPins &pins) {
     pins.enablePin = 24;
     return true;
   }
+  if (axis == "E1") {
+    pins.stepPin = 36;
+    pins.dirPin = 34;
+    pins.enablePin = 30;
+    return true;
+  }
   return false;
+}
+
+void clearRamps14AxisEnables() {
+  const uint8_t enablePins[] = {38, 56, 62, 24, 30};
+  for (uint8_t index = 0; index < sizeof(enablePins); index++) {
+    pinMode(enablePins[index], OUTPUT);
+    digitalWrite(enablePins[index], HIGH);
+  }
 }
 
 bool resolveRamps14OutputPin(const String &outputId, uint8_t &pin) {
@@ -638,7 +704,7 @@ unsigned int profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs,
   return (unsigned int)delayUs;
 }
 
-long runRamps14Steps(const Ramps14AxisPins &pins, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, const String &targetLimit, bool stopOnLimit, bool &limitHit) {
+long runRamps14Steps(const Ramps14AxisPins &pins, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool holdEnabled, const String &targetLimit, bool stopOnLimit, bool &limitHit) {
   limitHit = false;
   pinMode(pins.stepPin, OUTPUT);
   pinMode(pins.dirPin, OUTPUT);
@@ -668,7 +734,9 @@ long runRamps14Steps(const Ramps14AxisPins &pins, long direction, long maxSteps,
     }
   }
 
-  digitalWrite(pins.enablePin, HIGH);
+  if (!holdEnabled) {
+    digitalWrite(pins.enablePin, HIGH);
+  }
   return moved;
 }
 #endif
@@ -696,7 +764,7 @@ void sendState(const String &id) {
 
 String capabilitiesJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  return "{\"protocol_version\":1,\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.1.0\",\"hardware_configured\":" + configured + ",\"motion_commands_enabled\":false,\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"supported_commands\":[\"hello\",\"ping\",\"get_state\",\"get_capabilities\",\"get_hardware_config\",\"get_limit_switches\",\"self_test\",\"get_firmware_status\",\"read_inputs\",\"bench_unlock\",\"bench_test_output\",\"jog_axis\",\"move_axis\",\"seek_limit\",\"set_output\",\"get_faults\",\"inject_fault\",\"clear_faults\",\"enable_motion\",\"home_all\",\"set_joint\",\"set_gripper\",\"estop\",\"clear_estop\"]}";
+  return "{\"protocol_version\":1,\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.1.0\",\"hardware_configured\":" + configured + ",\"motion_commands_enabled\":false,\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"supported_commands\":[\"hello\",\"ping\",\"get_state\",\"get_capabilities\",\"get_hardware_config\",\"get_limit_switches\",\"self_test\",\"get_firmware_status\",\"read_inputs\",\"bench_unlock\",\"bench_test_output\",\"jog_axis\",\"move_axis\",\"seek_limit\",\"set_output\",\"set_axis_enabled\",\"get_faults\",\"inject_fault\",\"clear_faults\",\"enable_motion\",\"home_all\",\"set_joint\",\"set_gripper\",\"estop\",\"clear_estop\"]}";
 }
 
 String hardwareConfigJson() {
