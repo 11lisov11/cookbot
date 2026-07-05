@@ -65,13 +65,13 @@ def main() -> int:
     ramps14_jog.set_defaults(fn=cmd_mega_ramps14_jog)
 
     ramps14_move = subcommands.add_parser("mega-ramps14-move")
-    _add_ramps14_motion_args(ramps14_move)
+    _add_ramps14_motion_args(ramps14_move, default_min_delay_us=1000, default_accel_steps=250)
     ramps14_move.add_argument("--direction", type=int, choices=[0, 1], required=True)
     ramps14_move.add_argument("--steps", type=int, default=1200)
     ramps14_move.set_defaults(fn=cmd_mega_ramps14_move)
 
     ramps14_seek = subcommands.add_parser("mega-ramps14-seek-limit")
-    _add_ramps14_motion_args(ramps14_seek)
+    _add_ramps14_motion_args(ramps14_seek, default_min_delay_us=1850, default_accel_steps=0)
     ramps14_seek.add_argument("--direction", type=int, choices=[0, 1], required=True)
     ramps14_seek.add_argument("--limit", choices=["A_MIN", "B_MIN", "C_MIN"], required=True)
     ramps14_seek.add_argument("--max-steps", type=int, default=2500)
@@ -94,14 +94,19 @@ def main() -> int:
     return int(args.fn(args))
 
 
-def _add_ramps14_motion_args(parser: argparse.ArgumentParser) -> None:
+def _add_ramps14_motion_args(
+    parser: argparse.ArgumentParser,
+    *,
+    default_min_delay_us: int,
+    default_accel_steps: int,
+) -> None:
     parser.add_argument("--port")
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--axis", choices=["A", "B", "C", "SLIDER", "X", "Y", "Z", "E0"], required=True)
     parser.add_argument("--pulse-us", type=int, default=4)
     parser.add_argument("--start-delay-us", type=int, default=1850)
-    parser.add_argument("--min-delay-us", type=int, default=1850)
-    parser.add_argument("--accel-steps", type=int, default=0)
+    parser.add_argument("--min-delay-us", type=int, default=default_min_delay_us)
+    parser.add_argument("--accel-steps", type=int, default=default_accel_steps)
     parser.add_argument("--dry-run", action="store_true")
 
 

@@ -26,9 +26,31 @@ axes:
         min_delay_us: 1850
         accel_steps: 0
         repeated_seek_steps: [1264, 1264, 1264]
+      fast_move_away_default:
+        away_steps: 1200
+        start_delay_us: 1850
+        min_delay_us: 1000
+        accel_steps: 250
+        measured_by_seek_profile:
+          start_delay_us: 1850
+          min_delay_us: 1850
+          accel_steps: 0
+        repeated_seek_steps: [1264, 1264, 1263]
       sharp_unstable:
         start_delay_us: 1750
         min_delay_us: 1750
         accel_steps: 0
         observed_seek_steps: [1263, 1264, 1263, 1264, 1265, 1264]
         reason: Not three identical A_MIN positions within six cycles.
+      fast_move_away_unstable:
+        start_delay_us: 1850
+        min_delay_us: 900
+        accel_steps: 250
+        observed_seek_steps: [1219, 1260, 1261]
+        reason: Return-to-limit spread was 42 steps after fast away moves.
+      fast_seek_unstable:
+        start_delay_us: 1850
+        min_delay_us: 1600
+        accel_steps: 250
+        observed_seek_steps: [1264, 1262, 1265]
+        reason: Limit seek spread exceeded the current commissioning tolerance.

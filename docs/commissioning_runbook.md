@@ -142,6 +142,9 @@ Observed on the first CookBot A-axis commissioning pass:
 - `A` sharp reliable setting, matching the draw-bot style of sending one motion command to the controller: `start_delay_us=1850`, `min_delay_us=1850`, `accel_steps=0`
 - `A` sharp repeatability check: after a `1200` step away move, three consecutive seeks returned `1264` steps at `1850us`
 - `A` sharp `1750us` was not repeatable: observed `1263`, `1264`, and `1265`, so do not use it as a learned default
+- `A` fast move-away setting: `start_delay_us=1850`, `min_delay_us=1000`, `accel_steps=250`; after each `1200` step away move, stable `1850us` seeks returned `1264`, `1264`, `1263`
+- `A` fast `900us` move-away was not stable enough: observed return spread of `42` steps
+- `A` fast seek toward the limit at `1600us` was not stable enough: observed `1264`, `1262`, `1265`; keep `seek_limit` default at `1850us`
 
 The reference draw-bot implementation in `C:\tchmp` sends FluidNC `G0`/`G1`
 commands with a feed rate and lets the controller execute the motion. CookBot's

@@ -401,8 +401,8 @@ void handleRamps14MoveAxis(const String &id, const String &line) {
   long direction = extractJsonInt(line, "direction", 1);
   long pulseUs = extractJsonInt(line, "pulse_us", 4);
   long startDelayUs = extractJsonInt(line, "start_delay_us", 1850);
-  long minDelayUs = extractJsonInt(line, "min_delay_us", 1850);
-  long accelSteps = extractJsonInt(line, "accel_steps", 0);
+  long minDelayUs = extractJsonInt(line, "min_delay_us", 1000);
+  long accelSteps = extractJsonInt(line, "accel_steps", 250);
 
   if (steps < 1 || steps > 30000) {
     sendError(id, "invalid_move_steps");
