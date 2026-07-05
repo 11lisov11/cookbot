@@ -178,14 +178,16 @@ Stepper torque notes:
 RAMPS MOSFET output checks:
 
 ```powershell
-python scripts\hardware_tooling.py mega-ramps14-output --port COM6 --output D10 --pwm 255
-python scripts\hardware_tooling.py mega-ramps14-output --port COM6 --output D10 --pwm 0
+python scripts\hardware_tooling.py mega-ramps14-output --port COM6 --output D9 --pwm 255
+python scripts\hardware_tooling.py mega-ramps14-output --port COM6 --output D9 --pwm 0
 ```
 
-Use `D10` for the fan/vacuum output shown in the vendor wiring diagram only
-after confirming the RAMPS 12V input is powered and the load polarity is
-correct. `D8` and `D9` are also available for supervised commissioning, but
-must not be treated as heaters or autonomous cooking outputs.
+The connected controller's fan is verified on `D9`. The RAMPS commissioning
+firmware automatically turns `D9` on before every supervised motor movement
+(`jog_axis`, `move_axis`, or `seek_limit`) and leaves it on for driver cooling.
+Use `mega-ramps14-output --output D9 --pwm 0` to turn it off after testing.
+`D8` and `D10` remain available for supervised commissioning, but must not be
+treated as heaters or autonomous cooking outputs.
 
 Do not treat this mode as production motion control. Return to the locked default
 firmware after the bench check unless you are actively supervising the robot.

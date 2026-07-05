@@ -55,6 +55,7 @@ bool resolveRamps14AxisPins(const String &axis, Ramps14AxisPins &pins);
 bool resolveRamps14OutputPin(const String &outputId, uint8_t &pin);
 void clearRamps14AxisEnables();
 void clearRamps14Outputs();
+void ensureRamps14MotionFanOn();
 bool readRamps14LimitActive(const String &limitId);
 unsigned int profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps);
 long runRamps14Steps(const Ramps14AxisPins &pins, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool holdEnabled, const String &targetLimit, bool stopOnLimit, bool &limitHit);
@@ -394,6 +395,7 @@ void handleRamps14JogAxis(const String &id, const String &line) {
   digitalWrite(stepPin, LOW);
   digitalWrite(dirPin, direction == 0 ? LOW : HIGH);
   digitalWrite(enablePin, LOW);
+  ensureRamps14MotionFanOn();
   delay(20);
   for (long index = 0; index < steps; index++) {
     digitalWrite(stepPin, HIGH);
@@ -663,6 +665,11 @@ void clearRamps14Outputs() {
   digitalWrite(10, LOW);
 }
 
+void ensureRamps14MotionFanOn() {
+  pinMode(9, OUTPUT);
+  digitalWrite(9, HIGH);
+}
+
 bool readRamps14LimitActive(const String &limitId) {
   int pin = -1;
   if (limitId == "B_MIN") {
@@ -712,6 +719,7 @@ long runRamps14Steps(const Ramps14AxisPins &pins, long direction, long maxSteps,
   digitalWrite(pins.stepPin, LOW);
   digitalWrite(pins.dirPin, direction == 0 ? LOW : HIGH);
   digitalWrite(pins.enablePin, LOW);
+  ensureRamps14MotionFanOn();
   delay(20);
 
   volatile uint8_t *stepPort = portOutputRegister(digitalPinToPort(pins.stepPin));

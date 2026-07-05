@@ -38,7 +38,8 @@ Response:
 - `move_axis`: bounded long move inside Mega with trapezoid profiling. Fields: `axis`, `direction`, `steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`.
 - `seek_limit`: bounded limit seek inside Mega with acceleration and per-step limit checks. Fields: `axis`, `limit`, `direction`, `max_steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`.
 - `set_axis_enabled`: enables or disables one RAMPS stepper driver. Fields: `axis`, `enabled` (`0` or `1`). ESTOP clears all driver enables.
-- `move_axis` and `seek_limit` disable the driver at command completion.
+- `jog_axis`, `move_axis`, and `seek_limit` automatically turn RAMPS `D9` on for driver cooling before movement. Use `set_output` with `{"output":"D9","pwm":0}` to turn it off after testing.
+- `move_axis` and `seek_limit` disable the driver at command completion unless hold is requested.
 - `set_output`: supervised RAMPS MOSFET output control for `D8`, `D9`, or `D10`. Fields: `output`, `pwm` (`0..255`), optional `duration_ms` (`0` latches until changed). ESTOP clears all RAMPS outputs.
 - These commands are for supervised bench commissioning only. They are not autonomous motion control and must not be used by recipes or AI.
 
