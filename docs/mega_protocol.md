@@ -35,7 +35,10 @@ Response:
 - Request fields are top-level JSON fields for the commissioning sketch: `axis`, `steps`, `direction`, `pulse_us`, and `step_delay_us`.
 - Supported axes are `A`, `B`, `C`, `SLIDER`, and aliases `X`, `Y`, `Z`, `E0`.
 - `steps` is capped at 25 per command. Drivers are disabled immediately after each jog pulse.
-- This command is for supervised bench commissioning only. It is not autonomous motion control and must not be used by recipes or AI.
+- `move_axis`: bounded long move inside Mega with acceleration. Fields: `axis`, `direction`, `steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`.
+- `seek_limit`: bounded limit seek inside Mega with acceleration and per-step limit checks. Fields: `axis`, `limit`, `direction`, `max_steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`.
+- `move_axis` and `seek_limit` disable the driver at command completion.
+- These commands are for supervised bench commissioning only. They are not autonomous motion control and must not be used by recipes or AI.
 
 ## Bench Commands
 
@@ -55,6 +58,11 @@ Response:
 - `ramps14_commissioning_disabled`: `jog_axis` was sent to non-commissioning firmware.
 - `invalid_jog_steps`: jog step count is outside the allowed 1..25 range.
 - `invalid_jog_timing`: jog pulse timing is outside the allowed range.
+- `invalid_move_steps`: `move_axis` step count is outside the allowed range.
+- `invalid_move_timing`: `move_axis` timing parameters are outside the allowed range.
+- `invalid_seek_steps`: `seek_limit` max step count is outside the allowed range.
+- `invalid_seek_timing`: `seek_limit` timing parameters are outside the allowed range.
+- `unknown_limit`: limit ID is not one of the RAMPS commissioning limit IDs.
 - `unknown_axis`: jog axis is not one of the commissioning axis IDs.
 - `estop_active`: ESTOP blocks the requested command.
 - `active_fault`: simulated or firmware fault blocks motion.

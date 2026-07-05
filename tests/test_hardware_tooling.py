@@ -50,6 +50,14 @@ def test_upload_and_serial_probe_require_explicit_port():
     assert jog.returncode == 2
     assert "serial_port_required" in jog.stdout
 
+    move = run_tool("mega-ramps14-move", "--axis", "A", "--direction", "1", "--dry-run")
+    assert move.returncode == 2
+    assert "serial_port_required" in move.stdout
+
+    seek = run_tool("mega-ramps14-seek-limit", "--axis", "A", "--limit", "A_MIN", "--direction", "0", "--dry-run")
+    assert seek.returncode == 2
+    assert "serial_port_required" in seek.stdout
+
 
 def test_ramps14_jog_dry_run_is_bounded_and_explicit():
     result = run_tool(
@@ -70,6 +78,46 @@ def test_ramps14_jog_dry_run_is_bounded_and_explicit():
     too_large = run_tool("mega-ramps14-jog", "--port", "COM5", "--axis", "B", "--steps", "200", "--dry-run")
     assert too_large.returncode == 2
     assert "invalid_jog_steps" in too_large.stdout
+
+
+def test_ramps14_move_and_seek_dry_run_are_explicit():
+    move = run_tool(
+        "mega-ramps14-move",
+        "--port",
+        "COM5",
+        "--axis",
+        "A",
+        "--direction",
+        "1",
+        "--steps",
+        "1200",
+        "--min-delay-us",
+        "1850",
+        "--dry-run",
+    )
+    assert move.returncode == 0
+    assert "move_axis" in move.stdout
+    assert "1850" in move.stdout
+
+    seek = run_tool(
+        "mega-ramps14-seek-limit",
+        "--port",
+        "COM5",
+        "--axis",
+        "A",
+        "--limit",
+        "A_MIN",
+        "--direction",
+        "0",
+        "--max-steps",
+        "2500",
+        "--min-delay-us",
+        "1850",
+        "--dry-run",
+    )
+    assert seek.returncode == 0
+    assert "seek_limit" in seek.stdout
+    assert "A_MIN" in seek.stdout
 
 
 def test_commissioning_and_deploy_dry_runs_do_not_touch_hardware():

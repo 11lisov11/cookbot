@@ -21,6 +21,8 @@ def test_schema_endpoint_exposes_core_contracts(client):
     assert "MegaProtocolCommands" in body
     assert "bench_test_output" in body["MegaProtocolCommands"]
     assert "jog_axis" in body["MegaProtocolCommands"]
+    assert "move_axis" in body["MegaProtocolCommands"]
+    assert "seek_limit" in body["MegaProtocolCommands"]
 
 
 def test_hardware_protocol_and_automation_docs_exist():

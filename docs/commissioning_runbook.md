@@ -126,6 +126,21 @@ run recipes, or keep drivers enabled after the pulse:
 powershell -ExecutionPolicy Bypass -File scripts\mega_ramps14_jog.ps1 --port COM6 --axis B --steps 8 --return-to-start
 ```
 
+For real axis learning, use the firmware-side bounded commands instead of many
+small serial jogs:
+
+```powershell
+python scripts\hardware_tooling.py mega-ramps14-move --port COM6 --axis A --direction 1 --steps 1200 --min-delay-us 1850
+python scripts\hardware_tooling.py mega-ramps14-seek-limit --port COM6 --axis A --limit A_MIN --direction 0 --max-steps 2500 --min-delay-us 1850
+```
+
+Observed on the first CookBot A-axis commissioning pass:
+
+- `A` home direction toward `A_MIN`: `0`
+- `A` away direction: `1`
+- `A` reliable fast setting with acceleration: `start_delay_us=7000`, `min_delay_us=1850`, `accel_steps=500`
+- `A` repeatability check: three consecutive seeks returned `1264` steps after a `1200` step away move
+
 Axis mapping for this temporary commissioning mode:
 
 - `B`/`X`: STEP 54, DIR 55, ENABLE 38

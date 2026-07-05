@@ -64,6 +64,19 @@ def main() -> int:
     ramps14_jog.add_argument("--dry-run", action="store_true")
     ramps14_jog.set_defaults(fn=cmd_mega_ramps14_jog)
 
+    ramps14_move = subcommands.add_parser("mega-ramps14-move")
+    _add_ramps14_motion_args(ramps14_move)
+    ramps14_move.add_argument("--direction", type=int, choices=[0, 1], required=True)
+    ramps14_move.add_argument("--steps", type=int, default=1200)
+    ramps14_move.set_defaults(fn=cmd_mega_ramps14_move)
+
+    ramps14_seek = subcommands.add_parser("mega-ramps14-seek-limit")
+    _add_ramps14_motion_args(ramps14_seek)
+    ramps14_seek.add_argument("--direction", type=int, choices=[0, 1], required=True)
+    ramps14_seek.add_argument("--limit", choices=["A_MIN", "B_MIN", "C_MIN"], required=True)
+    ramps14_seek.add_argument("--max-steps", type=int, default=2500)
+    ramps14_seek.set_defaults(fn=cmd_mega_ramps14_seek_limit)
+
     commissioning = subcommands.add_parser("commissioning-check")
     commissioning.add_argument("--mega-port")
     commissioning.add_argument("--skip-adb-deploy", action="store_true")
@@ -79,6 +92,17 @@ def main() -> int:
 
     args = parser.parse_args()
     return int(args.fn(args))
+
+
+def _add_ramps14_motion_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--port")
+    parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--axis", choices=["A", "B", "C", "SLIDER", "X", "Y", "Z", "E0"], required=True)
+    parser.add_argument("--pulse-us", type=int, default=4)
+    parser.add_argument("--start-delay-us", type=int, default=7000)
+    parser.add_argument("--min-delay-us", type=int, default=1850)
+    parser.add_argument("--accel-steps", type=int, default=500)
+    parser.add_argument("--dry-run", action="store_true")
 
 
 def cmd_unoq_adb_check(args: argparse.Namespace) -> int:
@@ -304,6 +328,76 @@ def cmd_mega_ramps14_jog(args: argparse.Namespace) -> int:
             if not response.get("ok"):
                 return _fail(f"jog_failed:{response.get('error')}", False, response, 6)
             time.sleep(0.25)
+    return 0
+
+
+def cmd_mega_ramps14_move(args: argparse.Namespace) -> int:
+    if not args.port:
+        return _fail("serial_port_required", False, {}, 2)
+    if args.steps < 1 or args.steps > 30000:
+        return _fail("invalid_move_steps", False, {}, 2)
+    command = {
+        "id": f"{args.axis}_move",
+        "command": "move_axis",
+        "axis": args.axis,
+        "direction": args.direction,
+        "steps": args.steps,
+        "pulse_us": args.pulse_us,
+        "start_delay_us": args.start_delay_us,
+        "min_delay_us": args.min_delay_us,
+        "accel_steps": args.accel_steps,
+    }
+    return _send_ramps14_motion_command(args, command)
+
+
+def cmd_mega_ramps14_seek_limit(args: argparse.Namespace) -> int:
+    if not args.port:
+        return _fail("serial_port_required", False, {}, 2)
+    if args.max_steps < 1 or args.max_steps > 40000:
+        return _fail("invalid_seek_steps", False, {}, 2)
+    command = {
+        "id": f"{args.axis}_{args.limit}_seek",
+        "command": "seek_limit",
+        "axis": args.axis,
+        "limit": args.limit,
+        "direction": args.direction,
+        "max_steps": args.max_steps,
+        "pulse_us": args.pulse_us,
+        "start_delay_us": args.start_delay_us,
+        "min_delay_us": args.min_delay_us,
+        "accel_steps": args.accel_steps,
+    }
+    return _send_ramps14_motion_command(args, command)
+
+
+def _send_ramps14_motion_command(args: argparse.Namespace, command: dict) -> int:
+    if args.dry_run:
+        print("DRY RUN:", json.dumps({"port": args.port, "baud": args.baud, "command": command}, indent=2))
+        return 0
+
+    try:
+        import serial  # type: ignore
+    except ImportError:
+        return _fail("pyserial_not_installed", False, {}, 3)
+
+    try:
+        handle = serial.Serial(args.port, args.baud, timeout=1.0)
+    except Exception as exc:
+        return _fail(f"serial_open_failed:{args.port}:{exc}", False, {}, 3)
+
+    with handle:
+        time.sleep(2.0)
+        handle.reset_input_buffer()
+        status = _send_raw_mega_json(handle, {"id": "motion_status", "command": "get_firmware_status"}, timeout=5.0)
+        if not status.get("ok"):
+            return _fail(f"status_failed:{status}", False, {}, 4)
+        firmware_status = status.get("data", {}).get("firmware_status", {})
+        if not firmware_status.get("ramps14_commissioning"):
+            return _fail("ramps14_commissioning_not_enabled", False, firmware_status, 5)
+        response = _send_raw_mega_json(handle, command, timeout=90.0)
+        print(json.dumps(response, indent=2))
+        if not response.get("ok"):
+            return _fail(f"motion_failed:{response.get('error')}", False, response, 6)
     return 0
 
 
@@ -573,9 +667,9 @@ def _is_async_mega_event(line: bytes) -> bool:
     return isinstance(payload, dict) and "event" in payload and "ok" not in payload
 
 
-def _send_raw_mega_json(handle, payload: dict) -> dict:
+def _send_raw_mega_json(handle, payload: dict, timeout: float = 3.0) -> dict:
     handle.write((json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8"))
-    deadline = time.time() + 3.0
+    deadline = time.time() + timeout
     bad_line: bytes | None = None
     while time.time() < deadline:
         line = handle.readline()

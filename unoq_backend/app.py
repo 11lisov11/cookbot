@@ -99,6 +99,8 @@ MEGA_PROTOCOL_COMMANDS = [
     "bench_unlock",
     "bench_test_output",
     "jog_axis",
+    "move_axis",
+    "seek_limit",
     "get_faults",
     "inject_fault",
     "clear_faults",
