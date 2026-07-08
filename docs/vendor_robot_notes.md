@@ -14,6 +14,10 @@ Confirmed from user context:
 - The image shows three labeled limit switches `A`, `B`, and `C`.
 - The image shows 12V power input and 12V suction output terminals.
 - The image shows a Bluetooth/UART module connection labeled RXD, TXD, GND, and VCC.
+- User inspection found gearbox marking `P/N FLE 42-010`, `S/N H202600130` on the two lift-arm motors `A` and `B`.
+- User inspection found gearbox marking `P/N FLE 42-010`, `S/N H202600230` on motor `C`.
+- Public FLE42 gearbox listings indicate `010` corresponds to a likely `10:1` ratio, but this still needs exact vendor datasheet confirmation.
+- The slider motor has no external gearbox per user inspection.
 
 Unconfirmed:
 
@@ -22,7 +26,7 @@ Unconfirmed:
 - exact driver type, current limit, enable polarity, and microstepping;
 - servo or motor model;
 - link dimensions;
-- gear ratios;
+- final manufacturer-verified gearbox datasheet and exact output ratio tolerance;
 - travel limits;
 - current draw;
 - switch polarity;

@@ -181,6 +181,17 @@ For example, `1000` STEP/s with a `200` step motor, `1/16` microstepping, and a
 python scripts\hardware_tooling.py mega-motion-calc --delay-us 1000 --pulse-us 8 --microstep 16 --gear-ratio 50 --json
 ```
 
+Current user-inspected gearbox notes:
+
+- `A` and `B` lift-arm motors: `P/N FLE 42-010`, `S/N H202600130`; likely `10:1`.
+- `C` motor: `P/N FLE 42-010`, `S/N H202600230`; likely `10:1`.
+- `E0` slider: no external gearbox; use `gear_ratio=1` for motor-shaft RPM, then convert to linear travel from the measured screw or belt pitch.
+
+With `1/16` microstepping and an inferred `10:1` gearbox, the A rapid profile
+(`pulse_us=3`, `min_delay_us=250`) is about `7.4` output RPM. The `4000us` limit
+seek profile is about `0.47` output RPM. That is expected: homing is intentionally
+slow and torque-friendly.
+
 For a short all-axis supervised check:
 
 ```powershell

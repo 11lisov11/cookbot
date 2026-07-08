@@ -1,5 +1,31 @@
 project: CookBot
 controller: Arduino Mega + RAMPS 1.4 commissioning firmware
+hardware_observations:
+  gearboxes:
+    A:
+      user_reported_part_number: FLE 42-010
+      user_reported_serial_number: H202600130
+      inferred_ratio: 10
+      confidence: likely
+      note: FLE42-010 style listings identify 010 as a 10:1 gearbox ratio; verify against the exact vendor datasheet before final calibration.
+    B:
+      user_reported_part_number: FLE 42-010
+      user_reported_serial_number: H202600130
+      inferred_ratio: 10
+      confidence: likely
+      note: A and B are the two lift-arm geared motors per user inspection.
+    C:
+      user_reported_part_number: FLE 42-010
+      user_reported_serial_number: H202600230
+      inferred_ratio: 10
+      confidence: likely
+      note: C uses the same apparent 10:1 FLE42 gearbox family with a different serial number.
+    E0:
+      user_reported_part_number: null
+      user_reported_serial_number: null
+      inferred_ratio: 1
+      confidence: user_reported
+      note: Slider has no external gearbox; speed limits come from motor microstepping, driver current, and the slider transmission/load.
 axes:
   A:
     label: Vendor A motor / RAMPS Y channel
