@@ -193,6 +193,47 @@ def test_ramps14_output_dry_run_is_explicit():
     assert "invalid_output_pwm" in bad_pwm.stdout
 
 
+def test_motion_calc_reports_output_speed():
+    result = run_tool(
+        "mega-motion-calc",
+        "--delay-us",
+        "1000",
+        "--pulse-us",
+        "8",
+        "--microstep",
+        "16",
+        "--gear-ratio",
+        "50",
+        "--json",
+    )
+    assert result.returncode == 0
+    body = json.loads(result.stdout)
+    assert body["pulses_per_output_rev"] == 160000
+    assert 0.36 < body["output_rpm"] < 0.38
+
+
+def test_ramps14_axis_sweep_dry_run_is_bounded():
+    result = run_tool(
+        "mega-ramps14-axis-sweep",
+        "--port",
+        "COM5",
+        "--axes",
+        "A,E0",
+        "--steps",
+        "120",
+        "--slider-steps",
+        "80",
+        "--dry-run",
+    )
+    assert result.returncode == 0
+    assert '"axis": "A"' in result.stdout
+    assert '"axis": "E0"' in result.stdout
+    assert '"steps": 120' in result.stdout
+    assert '"steps": 80' in result.stdout
+    assert '"step_backend": "direct"' in result.stdout
+    assert '"step_backend": "digital"' in result.stdout
+
+
 def test_ramps14_enable_dry_run_is_explicit():
     enable = run_tool("mega-ramps14-enable", "--port", "COM5", "--axis", "E0", "--enabled", "1", "--dry-run")
     assert enable.returncode == 0

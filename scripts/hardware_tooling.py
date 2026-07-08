@@ -54,6 +54,15 @@ def main() -> int:
     serial_probe.add_argument("--dry-run", action="store_true")
     serial_probe.set_defaults(fn=cmd_mega_serial_probe)
 
+    motion_calc = subcommands.add_parser("mega-motion-calc")
+    motion_calc.add_argument("--delay-us", type=float, required=True)
+    motion_calc.add_argument("--pulse-us", type=float, default=8.0)
+    motion_calc.add_argument("--steps-per-rev", type=float, default=200.0)
+    motion_calc.add_argument("--microstep", type=float, default=16.0)
+    motion_calc.add_argument("--gear-ratio", type=float, default=1.0)
+    motion_calc.add_argument("--json", action="store_true")
+    motion_calc.set_defaults(fn=cmd_mega_motion_calc)
+
     ramps14_jog = subcommands.add_parser("mega-ramps14-jog")
     ramps14_jog.add_argument("--port")
     ramps14_jog.add_argument("--baud", type=int, default=115200)
@@ -94,6 +103,19 @@ def main() -> int:
     ramps14_enable.add_argument("--enabled", type=int, choices=[0, 1], required=True)
     ramps14_enable.add_argument("--dry-run", action="store_true")
     ramps14_enable.set_defaults(fn=cmd_mega_ramps14_enable)
+
+    ramps14_sweep = subcommands.add_parser("mega-ramps14-axis-sweep")
+    ramps14_sweep.add_argument("--port")
+    ramps14_sweep.add_argument("--baud", type=int, default=115200)
+    ramps14_sweep.add_argument("--axes", default="A,B,C,E0")
+    ramps14_sweep.add_argument("--steps", type=int, default=300)
+    ramps14_sweep.add_argument("--slider-steps", type=int, default=300)
+    ramps14_sweep.add_argument("--delay-us", type=int, default=8000)
+    ramps14_sweep.add_argument("--slider-delay-us", type=int, default=30000)
+    ramps14_sweep.add_argument("--pulse-us", type=int, default=8)
+    ramps14_sweep.add_argument("--slider-pulse-us", type=int, default=12)
+    ramps14_sweep.add_argument("--dry-run", action="store_true")
+    ramps14_sweep.set_defaults(fn=cmd_mega_ramps14_axis_sweep)
 
     commissioning = subcommands.add_parser("commissioning-check")
     commissioning.add_argument("--mega-port")
@@ -301,6 +323,42 @@ def cmd_mega_serial_probe(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_mega_motion_calc(args: argparse.Namespace) -> int:
+    if args.delay_us <= 0 or args.pulse_us <= 0:
+        return _fail("invalid_timing", args.json, {}, 2)
+    if args.steps_per_rev <= 0 or args.microstep <= 0 or args.gear_ratio <= 0:
+        return _fail("invalid_motion_geometry", args.json, {}, 2)
+
+    step_period_us = args.delay_us + args.pulse_us
+    step_rate_hz = 1_000_000.0 / step_period_us
+    motor_rpm = (step_rate_hz * 60.0) / (args.steps_per_rev * args.microstep)
+    output_rpm = motor_rpm / args.gear_ratio
+    pulses_per_motor_rev = args.steps_per_rev * args.microstep
+    pulses_per_output_rev = pulses_per_motor_rev * args.gear_ratio
+    result = {
+        "delay_us": args.delay_us,
+        "pulse_us": args.pulse_us,
+        "step_period_us": step_period_us,
+        "step_rate_hz": step_rate_hz,
+        "steps_per_rev": args.steps_per_rev,
+        "microstep": args.microstep,
+        "gear_ratio": args.gear_ratio,
+        "pulses_per_motor_rev": pulses_per_motor_rev,
+        "pulses_per_output_rev": pulses_per_output_rev,
+        "motor_rpm": motor_rpm,
+        "output_rpm": output_rpm,
+        "output_rev_per_hour": output_rpm * 60.0,
+    }
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"step_rate_hz={step_rate_hz:.2f}")
+        print(f"motor_rpm={motor_rpm:.4f}")
+        print(f"output_rpm={output_rpm:.4f}")
+        print(f"pulses_per_output_rev={pulses_per_output_rev:.0f}")
+    return 0
+
+
 def cmd_mega_ramps14_jog(args: argparse.Namespace) -> int:
     if not args.port:
         return _fail("serial_port_required", False, {}, 2)
@@ -320,7 +378,7 @@ def cmd_mega_ramps14_jog(args: argparse.Namespace) -> int:
     if args.return_to_start:
         commands.append({**commands[0], "id": f"{args.axis}_return", "direction": 0 if args.direction else 1})
     if args.dry_run:
-        print("DRY RUN:", json.dumps({"port": args.port, "baud": args.baud, "commands": commands}, indent=2))
+        print("DRY RUN:", json.dumps({"port": args.port, "baud": args.baud, "commands": commands}, indent=2), flush=True)
         return 0
 
     try:
@@ -344,7 +402,7 @@ def cmd_mega_ramps14_jog(args: argparse.Namespace) -> int:
             return _fail("ramps14_commissioning_not_enabled", False, firmware_status, 5)
         for command in commands:
             response = _send_raw_mega_json(handle, command)
-            print(json.dumps(response, indent=2))
+            print(json.dumps(response, indent=2), flush=True)
             if not response.get("ok"):
                 return _fail(f"jog_failed:{response.get('error')}", False, response, 6)
             time.sleep(0.25)
@@ -418,6 +476,64 @@ def cmd_mega_ramps14_enable(args: argparse.Namespace) -> int:
     return _send_ramps14_motion_command(args, command)
 
 
+def cmd_mega_ramps14_axis_sweep(args: argparse.Namespace) -> int:
+    if not args.port:
+        return _fail("serial_port_required", False, {}, 2)
+    axes = _parse_ramps14_axes(args.axes)
+    if not axes:
+        return _fail("axis_list_empty", False, {}, 2)
+    if args.steps < 1 or args.steps > 30000 or args.slider_steps < 1 or args.slider_steps > 30000:
+        return _fail("invalid_sweep_steps", False, {}, 2)
+    if args.delay_us < 250 or args.delay_us > 200000 or args.slider_delay_us < 250 or args.slider_delay_us > 200000:
+        return _fail("invalid_sweep_timing", False, {}, 2)
+    if args.pulse_us < 2 or args.pulse_us > 20 or args.slider_pulse_us < 2 or args.slider_pulse_us > 20:
+        return _fail("invalid_sweep_pulse", False, {}, 2)
+
+    output_args = argparse.Namespace(port=args.port, baud=args.baud, dry_run=args.dry_run)
+    result = _send_ramps14_motion_command(
+        output_args,
+        {"id": "D9_output", "command": "set_output", "output": "D9", "pwm": 255, "duration_ms": 0},
+    )
+    if result != 0:
+        return result
+
+    for axis in axes:
+        is_slider = axis in {"SLIDER", "E0"}
+        steps = args.slider_steps if is_slider else args.steps
+        delay_us = args.slider_delay_us if is_slider else args.delay_us
+        pulse_us = args.slider_pulse_us if is_slider else args.pulse_us
+        command_base = {
+            "command": "move_axis",
+            "axis": axis,
+            "steps": steps,
+            "pulse_us": pulse_us,
+            "start_delay_us": delay_us,
+            "min_delay_us": delay_us,
+            "accel_steps": 0,
+            "decel_steps": 0,
+            "hold": 0,
+            "step_backend": "digital" if is_slider else "direct",
+        }
+        for direction in (1, 0):
+            command = {**command_base, "id": f"{axis}_sweep_{direction}", "direction": direction}
+            if not args.dry_run:
+                print(f"SWEEP axis={axis} direction={direction} steps={steps} delay_us={delay_us}", flush=True)
+            result = _send_ramps14_motion_command(output_args, command)
+            if result != 0:
+                return result
+            time.sleep(0.5)
+
+    for axis in axes:
+        disable = {"id": f"{axis}_enable", "command": "set_axis_enabled", "axis": axis, "enabled": 0}
+        result = _send_ramps14_motion_command(output_args, disable)
+        if result != 0:
+            return result
+    return _send_ramps14_motion_command(
+        output_args,
+        {"id": "D9_output", "command": "set_output", "output": "D9", "pwm": 255, "duration_ms": 0},
+    )
+
+
 def _resolve_ramps14_timing(args: argparse.Namespace, purpose: str) -> dict[str, int]:
     if purpose == "seek":
         defaults = {
@@ -475,9 +591,18 @@ def _resolve_ramps14_step_backend(args: argparse.Namespace) -> str:
     return "direct"
 
 
+def _parse_ramps14_axes(raw_axes: str) -> list[str]:
+    allowed = {"A", "B", "C", "SLIDER", "X", "Y", "Z", "E0", "E1"}
+    axes = [axis.strip().upper() for axis in raw_axes.split(",") if axis.strip()]
+    invalid = [axis for axis in axes if axis not in allowed]
+    if invalid:
+        return []
+    return axes
+
+
 def _send_ramps14_motion_command(args: argparse.Namespace, command: dict) -> int:
     if args.dry_run:
-        print("DRY RUN:", json.dumps({"port": args.port, "baud": args.baud, "command": command}, indent=2))
+        print("DRY RUN:", json.dumps({"port": args.port, "baud": args.baud, "command": command}, indent=2), flush=True)
         return 0
 
     try:
@@ -500,7 +625,7 @@ def _send_ramps14_motion_command(args: argparse.Namespace, command: dict) -> int
         if not firmware_status.get("ramps14_commissioning"):
             return _fail("ramps14_commissioning_not_enabled", False, firmware_status, 5)
         response = _send_raw_mega_json(handle, command, timeout=_ramps14_command_timeout_seconds(command))
-        print(json.dumps(response, indent=2))
+        print(json.dumps(response, indent=2), flush=True)
         if not response.get("ok"):
             return _fail(f"motion_failed:{response.get('error')}", False, response, 6)
     return 0

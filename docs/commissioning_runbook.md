@@ -152,6 +152,9 @@ Observed on the first CookBot A-axis commissioning pass:
 - `A` rapid default timing: `1200` away steps completed in `0.383s`; three slow seeks returned `1264`, `1264`, `1264`
 - `A` smoother rapid fallback: `pulse_us=3`, `min_delay_us=250`, `accel_steps=50`, `decel_steps=50`; `1200` away steps completed in `0.475s`, seeks returned `1264`, `1264`, `1264`
 - `A` CLI-default confirmation: a plain `mega-ramps14-move --axis A --direction 1 --steps 1200` returned to `A_MIN` in `1264` seek steps
+- `B` home direction toward `B_MIN`: `0`; a bounded `4000us` seek hit `B_MIN` in `2052` steps.
+- `C_MIN` is not verified yet; bounded seeks in both directions did not hit it. Do not run unbounded C homing until the switch wiring and mechanical reach are confirmed.
+- A supervised all-axis sweep has passed on `A`, `B`, `C`, and `E0` using `mega-ramps14-axis-sweep`; this verifies command delivery and basic short motion, not absolute homing or calibration.
 
 The reference draw-bot implementation in `C:\tchmp` sends FluidNC `G0`/`G1`
 commands with a feed rate and lets the controller execute the motion. CookBot's
@@ -163,6 +166,25 @@ supports `decel_steps` for fixed moves; limit seeks still use the slower
 For `SLIDER`/`E0`, long `move_axis` commands default to `step_backend=digital`,
 which intentionally matches the original `jog_axis` `digitalWrite` pulse path.
 Use `--step-backend direct` only when that axis has been proven reliable.
+
+Use `mega-motion-calc` before judging whether an axis is "slow". Output speed is:
+
+```text
+output_rpm = step_rate_hz * 60 / (motor_steps_per_rev * microstep * gear_ratio)
+```
+
+For example, `1000` STEP/s with a `200` step motor, `1/16` microstepping, and a
+`50:1` gearbox is only `0.375` output RPM. The helper prints the same math:
+
+```powershell
+python scripts\hardware_tooling.py mega-motion-calc --delay-us 1000 --pulse-us 8 --microstep 16 --gear-ratio 50 --json
+```
+
+For a short all-axis supervised check:
+
+```powershell
+python scripts\hardware_tooling.py mega-ramps14-axis-sweep --port COM6 --axes A,B,C,E0 --steps 300 --slider-steps 300
+```
 
 Axis mapping for this temporary commissioning mode:
 
