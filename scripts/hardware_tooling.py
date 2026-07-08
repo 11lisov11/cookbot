@@ -117,6 +117,22 @@ def main() -> int:
     ramps14_sweep.add_argument("--dry-run", action="store_true")
     ramps14_sweep.set_defaults(fn=cmd_mega_ramps14_axis_sweep)
 
+    ramps14_edge_scan = subcommands.add_parser("mega-ramps14-edge-scan")
+    ramps14_edge_scan.add_argument("--port")
+    ramps14_edge_scan.add_argument("--baud", type=int, default=115200)
+    ramps14_edge_scan.add_argument("--axis", choices=["A", "B", "C"], required=True)
+    ramps14_edge_scan.add_argument("--home-direction", type=int, choices=[0, 1], default=0)
+    ramps14_edge_scan.add_argument("--away-direction", type=int, choices=[0, 1], default=1)
+    ramps14_edge_scan.add_argument("--home-max-steps", type=int, default=10000)
+    ramps14_edge_scan.add_argument("--away-steps", type=int, default=5000)
+    ramps14_edge_scan.add_argument("--chunk-steps", type=int, default=1000)
+    ramps14_edge_scan.add_argument("--home-delay-us", type=int, default=8000)
+    ramps14_edge_scan.add_argument("--away-delay-us", type=int, default=8000)
+    ramps14_edge_scan.add_argument("--pulse-us", type=int, default=8)
+    ramps14_edge_scan.add_argument("--step-backend", choices=["direct", "digital"], default="direct")
+    ramps14_edge_scan.add_argument("--dry-run", action="store_true")
+    ramps14_edge_scan.set_defaults(fn=cmd_mega_ramps14_edge_scan)
+
     commissioning = subcommands.add_parser("commissioning-check")
     commissioning.add_argument("--mega-port")
     commissioning.add_argument("--skip-adb-deploy", action="store_true")
@@ -534,6 +550,105 @@ def cmd_mega_ramps14_axis_sweep(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_mega_ramps14_edge_scan(args: argparse.Namespace) -> int:
+    if not args.port:
+        return _fail("serial_port_required", False, {}, 2)
+    if args.home_direction == args.away_direction:
+        return _fail("edge_scan_directions_must_differ", False, {}, 2)
+    if args.home_max_steps < 1 or args.home_max_steps > 40000:
+        return _fail("invalid_edge_home_steps", False, {}, 2)
+    if args.away_steps < 1 or args.away_steps > 30000 or args.chunk_steps < 1 or args.chunk_steps > args.away_steps:
+        return _fail("invalid_edge_away_steps", False, {}, 2)
+    if args.home_delay_us < 250 or args.home_delay_us > 200000 or args.away_delay_us < 250 or args.away_delay_us > 200000:
+        return _fail("invalid_edge_timing", False, {}, 2)
+    if args.pulse_us < 2 or args.pulse_us > 20:
+        return _fail("invalid_edge_pulse", False, {}, 2)
+
+    transport_args = argparse.Namespace(port=args.port, baud=args.baud, dry_run=args.dry_run)
+    limit = f"{args.axis}_MIN"
+    result, _ = _exchange_ramps14_motion_command(
+        transport_args,
+        {"id": "D9_output", "command": "set_output", "output": "D9", "pwm": 255, "duration_ms": 0},
+    )
+    if result != 0:
+        return result
+
+    home_command = {
+        "id": f"{args.axis}_{limit}_edge_home",
+        "command": "seek_limit",
+        "axis": args.axis,
+        "limit": limit,
+        "direction": args.home_direction,
+        "max_steps": args.home_max_steps,
+        "pulse_us": args.pulse_us,
+        "start_delay_us": args.home_delay_us,
+        "min_delay_us": args.home_delay_us,
+        "accel_steps": 0,
+        "decel_steps": 0,
+        "step_backend": args.step_backend,
+    }
+    print(f"EDGE-SCAN axis={args.axis} phase=home limit={limit} max_steps={args.home_max_steps}", flush=True)
+    result, home_response = _exchange_ramps14_motion_command(transport_args, home_command)
+    if result != 0:
+        return result
+    if not args.dry_run and not home_response.get("data", {}).get("limit_hit"):
+        _send_ramps14_motion_command(
+            transport_args,
+            {"id": f"{args.axis}_enable", "command": "set_axis_enabled", "axis": args.axis, "enabled": 0},
+        )
+        return _fail("edge_home_limit_not_hit", False, home_response, 7)
+
+    remaining = args.away_steps
+    completed = 0
+    chunk_index = 1
+    while remaining > 0:
+        chunk_steps = min(args.chunk_steps, remaining)
+        completed += chunk_steps
+        command = {
+            "id": f"{args.axis}_edge_away_{chunk_index}",
+            "command": "move_axis",
+            "axis": args.axis,
+            "direction": args.away_direction,
+            "steps": chunk_steps,
+            "pulse_us": args.pulse_us,
+            "start_delay_us": args.away_delay_us,
+            "min_delay_us": args.away_delay_us,
+            "accel_steps": 0,
+            "decel_steps": 0,
+            "hold": 0,
+            "step_backend": args.step_backend,
+        }
+        print(f"EDGE-SCAN axis={args.axis} phase=away chunk={chunk_index} steps={chunk_steps} completed={completed}/{args.away_steps}", flush=True)
+        result, _ = _exchange_ramps14_motion_command(transport_args, command)
+        if result != 0:
+            return result
+        remaining -= chunk_steps
+        chunk_index += 1
+        time.sleep(0.5)
+
+    print(f"EDGE-SCAN axis={args.axis} phase=return-home limit={limit} max_steps={args.home_max_steps + args.away_steps}", flush=True)
+    return_home_command = {**home_command, "id": f"{args.axis}_{limit}_edge_return", "max_steps": args.home_max_steps + args.away_steps}
+    result, return_response = _exchange_ramps14_motion_command(transport_args, return_home_command)
+    if result != 0:
+        return result
+
+    disable_result = _send_ramps14_motion_command(
+        transport_args,
+        {"id": f"{args.axis}_enable", "command": "set_axis_enabled", "axis": args.axis, "enabled": 0},
+    )
+    fan_result = _send_ramps14_motion_command(
+        transport_args,
+        {"id": "D9_output", "command": "set_output", "output": "D9", "pwm": 255, "duration_ms": 0},
+    )
+    if disable_result != 0:
+        return disable_result
+    if fan_result != 0:
+        return fan_result
+    if not args.dry_run and not return_response.get("data", {}).get("limit_hit"):
+        return _fail("edge_return_limit_not_hit", False, return_response, 8)
+    return 0
+
+
 def _resolve_ramps14_timing(args: argparse.Namespace, purpose: str) -> dict[str, int]:
     if purpose == "seek":
         defaults = {
@@ -601,34 +716,39 @@ def _parse_ramps14_axes(raw_axes: str) -> list[str]:
 
 
 def _send_ramps14_motion_command(args: argparse.Namespace, command: dict) -> int:
+    result, _ = _exchange_ramps14_motion_command(args, command)
+    return result
+
+
+def _exchange_ramps14_motion_command(args: argparse.Namespace, command: dict) -> tuple[int, dict]:
     if args.dry_run:
         print("DRY RUN:", json.dumps({"port": args.port, "baud": args.baud, "command": command}, indent=2), flush=True)
-        return 0
+        return 0, {"ok": True, "data": {}, "error": None}
 
     try:
         import serial  # type: ignore
     except ImportError:
-        return _fail("pyserial_not_installed", False, {}, 3)
+        return _fail("pyserial_not_installed", False, {}, 3), {}
 
     try:
         handle = serial.Serial(args.port, args.baud, timeout=1.0)
     except Exception as exc:
-        return _fail(f"serial_open_failed:{args.port}:{exc}", False, {}, 3)
+        return _fail(f"serial_open_failed:{args.port}:{exc}", False, {}, 3), {}
 
     with handle:
         time.sleep(2.0)
         handle.reset_input_buffer()
         status = _send_raw_mega_json(handle, {"id": "motion_status", "command": "get_firmware_status"}, timeout=5.0)
         if not status.get("ok"):
-            return _fail(f"status_failed:{status}", False, {}, 4)
+            return _fail(f"status_failed:{status}", False, {}, 4), status
         firmware_status = status.get("data", {}).get("firmware_status", {})
         if not firmware_status.get("ramps14_commissioning"):
-            return _fail("ramps14_commissioning_not_enabled", False, firmware_status, 5)
+            return _fail("ramps14_commissioning_not_enabled", False, firmware_status, 5), status
         response = _send_raw_mega_json(handle, command, timeout=_ramps14_command_timeout_seconds(command))
         print(json.dumps(response, indent=2), flush=True)
         if not response.get("ok"):
-            return _fail(f"motion_failed:{response.get('error')}", False, response, 6)
-    return 0
+            return _fail(f"motion_failed:{response.get('error')}", False, response, 6), response
+    return 0, response
 
 
 def _ramps14_command_timeout_seconds(command: dict) -> float:

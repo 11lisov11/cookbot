@@ -156,6 +156,10 @@ Observed on the first CookBot A-axis commissioning pass:
 - `C` home direction toward `C_MIN`: `0`; a bounded `4000us` seek hit `C_MIN` in `3521` steps.
 - After drivers are disabled, some axes may mechanically relax off the switch; rely on the `seek_limit` `limit_hit=true` result for the homing event and re-check latching separately if holding at the switch matters.
 - A supervised all-axis sweep has passed on `A`, `B`, `C`, and `E0` using `mega-ramps14-axis-sweep`; this verifies command delivery and basic short motion, not absolute homing or calibration.
+- Bounded edge-scan results at `8000us`, chunked `500` steps:
+  - `A`: `A_MIN` was already active, moved away `5000` steps, returned to `A_MIN` in `8055` seek steps.
+  - `C`: homed to `C_MIN` in `5146` steps, moved away `5000` steps, returned to `C_MIN` in `5047` seek steps.
+  - `B`: failed to reach `B_MIN` in `12000` home steps, so away-edge movement was blocked by the tool. Inspect B driver, coil pairs, wiring, switch reach, and mechanics before any larger B scan.
 
 The reference draw-bot implementation in `C:\tchmp` sends FluidNC `G0`/`G1`
 commands with a feed rate and lets the controller execute the motion. CookBot's
@@ -197,6 +201,20 @@ For a short all-axis supervised check:
 ```powershell
 python scripts\hardware_tooling.py mega-ramps14-axis-sweep --port COM6 --axes A,B,C,E0 --steps 300 --slider-steps 300
 ```
+
+For a bounded "edge-to-edge" style check without a second/max limit switch, use
+`mega-ramps14-edge-scan`. It first requires a successful `*_MIN` seek, then moves
+away in chunks for a fixed step budget, then returns to `*_MIN`.
+
+```powershell
+python scripts\hardware_tooling.py mega-ramps14-edge-scan --port COM6 --axis A --away-steps 5000 --chunk-steps 1000
+```
+
+Do not implement "move until the motor stalls" with the current RAMPS/A4988-style
+commissioning setup. The firmware has no encoder, current sensor, TMC StallGuard,
+or max-limit input, so it cannot distinguish a mechanical stop from normal
+movement. A stall-based edge finder would keep emitting STEP pulses into a hard
+stop and can overheat the driver, skip position, or damage the gearbox.
 
 Axis mapping for this temporary commissioning mode:
 

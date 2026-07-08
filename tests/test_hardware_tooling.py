@@ -234,6 +234,43 @@ def test_ramps14_axis_sweep_dry_run_is_bounded():
     assert '"step_backend": "digital"' in result.stdout
 
 
+def test_ramps14_edge_scan_dry_run_requires_bounded_motion():
+    result = run_tool(
+        "mega-ramps14-edge-scan",
+        "--port",
+        "COM5",
+        "--axis",
+        "A",
+        "--away-steps",
+        "1200",
+        "--chunk-steps",
+        "400",
+        "--dry-run",
+    )
+    assert result.returncode == 0
+    assert "phase=home" in result.stdout
+    assert "phase=away" in result.stdout
+    assert "completed=1200/1200" in result.stdout
+    assert "phase=return-home" in result.stdout
+    assert '"command": "seek_limit"' in result.stdout
+    assert '"command": "move_axis"' in result.stdout
+
+    bad = run_tool(
+        "mega-ramps14-edge-scan",
+        "--port",
+        "COM5",
+        "--axis",
+        "A",
+        "--home-direction",
+        "0",
+        "--away-direction",
+        "0",
+        "--dry-run",
+    )
+    assert bad.returncode == 2
+    assert "edge_scan_directions_must_differ" in bad.stdout
+
+
 def test_ramps14_enable_dry_run_is_explicit():
     enable = run_tool("mega-ramps14-enable", "--port", "COM5", "--axis", "E0", "--enabled", "1", "--dry-run")
     assert enable.returncode == 0
