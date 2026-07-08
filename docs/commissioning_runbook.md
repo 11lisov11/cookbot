@@ -153,7 +153,8 @@ Observed on the first CookBot A-axis commissioning pass:
 - `A` smoother rapid fallback: `pulse_us=3`, `min_delay_us=250`, `accel_steps=50`, `decel_steps=50`; `1200` away steps completed in `0.475s`, seeks returned `1264`, `1264`, `1264`
 - `A` CLI-default confirmation: a plain `mega-ramps14-move --axis A --direction 1 --steps 1200` returned to `A_MIN` in `1264` seek steps
 - `B` home direction toward `B_MIN`: `0`; a bounded `4000us` seek hit `B_MIN` in `2052` steps.
-- `C_MIN` is not verified yet; bounded seeks in both directions did not hit it. Do not run unbounded C homing until the switch wiring and mechanical reach are confirmed.
+- `C` home direction toward `C_MIN`: `0`; a bounded `4000us` seek hit `C_MIN` in `3521` steps.
+- After drivers are disabled, some axes may mechanically relax off the switch; rely on the `seek_limit` `limit_hit=true` result for the homing event and re-check latching separately if holding at the switch matters.
 - A supervised all-axis sweep has passed on `A`, `B`, `C`, and `E0` using `mega-ramps14-axis-sweep`; this verifies command delivery and basic short motion, not absolute homing or calibration.
 
 The reference draw-bot implementation in `C:\tchmp` sends FluidNC `G0`/`G1`
