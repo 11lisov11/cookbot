@@ -63,6 +63,14 @@ def main() -> int:
     motion_calc.add_argument("--json", action="store_true")
     motion_calc.set_defaults(fn=cmd_mega_motion_calc)
 
+    a4988_calc = subcommands.add_parser("a4988-current-calc")
+    a4988_calc.add_argument("--rsense-ohm", type=float, required=True)
+    a4988_target = a4988_calc.add_mutually_exclusive_group(required=True)
+    a4988_target.add_argument("--current-a", type=float)
+    a4988_target.add_argument("--vref-v", type=float)
+    a4988_calc.add_argument("--json", action="store_true")
+    a4988_calc.set_defaults(fn=cmd_a4988_current_calc)
+
     ramps14_jog = subcommands.add_parser("mega-ramps14-jog")
     ramps14_jog.add_argument("--port")
     ramps14_jog.add_argument("--baud", type=int, default=115200)
@@ -372,6 +380,42 @@ def cmd_mega_motion_calc(args: argparse.Namespace) -> int:
         print(f"motor_rpm={motor_rpm:.4f}")
         print(f"output_rpm={output_rpm:.4f}")
         print(f"pulses_per_output_rev={pulses_per_output_rev:.0f}")
+    return 0
+
+
+def cmd_a4988_current_calc(args: argparse.Namespace) -> int:
+    if args.rsense_ohm <= 0:
+        return _fail("invalid_rsense", args.json, {}, 2)
+    if args.current_a is not None and args.current_a <= 0:
+        return _fail("invalid_current", args.json, {}, 2)
+    if args.vref_v is not None and args.vref_v <= 0:
+        return _fail("invalid_vref", args.json, {}, 2)
+
+    if args.current_a is not None:
+        current_a = args.current_a
+        vref_v = current_a * 8.0 * args.rsense_ohm
+    else:
+        vref_v = args.vref_v
+        current_a = vref_v / (8.0 * args.rsense_ohm)
+
+    result = {
+        "driver": "A4988",
+        "formula": "I_tripmax = Vref / (8 * Rsense)",
+        "rsense_ohm": args.rsense_ohm,
+        "current_a": current_a,
+        "vref_v": vref_v,
+        "note": "Verify the sense resistor marking on the exact red stepstick module before adjusting current.",
+    }
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(
+            "A4988 current limit: "
+            f"Rsense={args.rsense_ohm:g} ohm, Vref={vref_v:.3f} V, "
+            f"I_tripmax={current_a:.3f} A"
+        )
+        print("Formula: I_tripmax = Vref / (8 * Rsense)")
+        print("Check the Rsense marking on the real red stepstick before changing the potentiometer.")
     return 0
 
 

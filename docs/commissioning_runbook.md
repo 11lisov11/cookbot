@@ -226,7 +226,11 @@ Axis mapping for this temporary commissioning mode:
 
 Stepper torque notes:
 
-- Stepper current is set physically on the stepstick driver's trim potentiometer; the firmware cannot raise current on A4988/DRV8825-style plug-in drivers.
+- User reported red A4988 stepstick-style drivers on the RAMPS controller.
+- Stepper current is set physically on the stepstick driver's trim potentiometer; the firmware cannot raise current on A4988 plug-in drivers.
+- For A4988, use `I_tripmax = Vref / (8 * Rsense)`. Common red modules may use different sense resistors, so `1A` is `Vref=0.800V` for `R100`/`0.1 ohm`, `0.544V` for `R068`, and `0.400V` for `R050`.
+- Use the helper before changing current: `python scripts\hardware_tooling.py a4988-current-calc --rsense-ohm 0.1 --current-a 1 --json`.
+- A4988 current limit, microstep jumper state, motor coil pairing, VMOT voltage/current supply, and mechanical friction must all be verified before treating skipped steps as a software timing issue.
 - Use slower timing for more usable torque while moving, for example `--start-delay-us 6000 --min-delay-us 2500 --accel-steps 600 --decel-steps 600`.
 - The verified `E0` slider uses `step_backend=digital` so long moves match the original `jog_axis` pulse path. The current learned profile is a flat `12000us` step interval: `pulse_us=8`, `start_delay_us=12000`, `min_delay_us=12000`, `accel_steps=0`, `decel_steps=0`.
 - Observed slider behavior: four back-and-forth cycles of `600` steps moved on the learned flat `12000us` profile; a larger `6250` step ramped profile with `min_delay_us=5000` did not move reliably. For long tests, repeat short verified chunks instead of sending one large unverified ramp.

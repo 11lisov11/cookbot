@@ -11,11 +11,12 @@ Verified project facts:
 - The vendor image labels motor connectors `A`, `B`, `C`, and a slider motor.
 - The vendor image labels limit switches `A`, `B`, and `C`.
 - The vendor image labels 12V input and 12V suction output terminals.
+- User reported red A4988 stepstick-style stepper driver modules on the RAMPS controller.
 
 Unknown until hardware inspection:
 
 - Verified real axis count.
-- Motor/servo driver type and current settings.
+- A4988 module Rsense marking, Vref/current limit, microstepping jumpers, cooling margin, and enable polarity.
 - Arduino Mega STEP/DIR/EN pin map.
 - Limit switch wiring polarity and triggered electrical state.
 - Power current requirements.

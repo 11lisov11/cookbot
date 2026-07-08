@@ -1,6 +1,11 @@
 project: CookBot
 controller: Arduino Mega + RAMPS 1.4 commissioning firmware
 hardware_observations:
+  stepper_drivers:
+    user_reported_type: A4988
+    module_style: red stepstick
+    confidence: user_reported
+    note: Current limit is set by the physical Vref potentiometer and the module's Rsense value; firmware cannot raise A4988 motor current.
   gearboxes:
     A:
       user_reported_part_number: FLE 42-010

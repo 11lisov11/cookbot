@@ -18,12 +18,13 @@ Confirmed from user context:
 - User inspection found gearbox marking `P/N FLE 42-010`, `S/N H202600230` on motor `C`.
 - Public FLE42 gearbox listings indicate `010` corresponds to a likely `10:1` ratio, but this still needs exact vendor datasheet confirmation.
 - The slider motor has no external gearbox per user inspection.
+- User reported red A4988 stepstick-style stepper drivers on the RAMPS controller.
 
 Unconfirmed:
 
 - verified real axis count;
 - Mega STEP/DIR/EN pin map;
-- exact driver type, current limit, enable polarity, and microstepping;
+- A4988 module Rsense marking, Vref/current limit, enable polarity, cooling margin, and microstepping;
 - servo or motor model;
 - link dimensions;
 - final manufacturer-verified gearbox datasheet and exact output ratio tolerance;

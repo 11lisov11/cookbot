@@ -8,7 +8,7 @@ items:
   - id: driver_types
     label: Motor/servo driver types identified
     verified: false
-    evidence: "docs/hardware_evidence/vendor_controller_wiring.png shows plug-in stepper driver carriers, but exact driver model, current limit, microstepping, and enable polarity are not verified."
+    evidence: "User reported red A4988 stepstick-style drivers on the RAMPS controller. Keep unverified until the exact module Rsense marking, Vref/current limit, microstepping jumpers, cooling, and enable polarity are documented."
   - id: limit_polarity
     label: Limit switch polarity verified
     verified: false

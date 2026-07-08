@@ -212,6 +212,34 @@ def test_motion_calc_reports_output_speed():
     assert 0.36 < body["output_rpm"] < 0.38
 
 
+def test_a4988_current_calc_reports_vref_and_current():
+    by_current = run_tool(
+        "a4988-current-calc",
+        "--rsense-ohm",
+        "0.1",
+        "--current-a",
+        "1.0",
+        "--json",
+    )
+    assert by_current.returncode == 0
+    body = json.loads(by_current.stdout)
+    assert body["driver"] == "A4988"
+    assert body["current_a"] == 1.0
+    assert body["vref_v"] == 0.8
+
+    by_vref = run_tool(
+        "a4988-current-calc",
+        "--rsense-ohm",
+        "0.05",
+        "--vref-v",
+        "0.4",
+        "--json",
+    )
+    assert by_vref.returncode == 0
+    body = json.loads(by_vref.stdout)
+    assert body["current_a"] == 1.0
+
+
 def test_ramps14_axis_sweep_dry_run_is_bounded():
     result = run_tool(
         "mega-ramps14-axis-sweep",
