@@ -56,11 +56,18 @@ bool resolveRamps14OutputPin(const String &outputId, uint8_t &pin);
 void clearRamps14AxisEnables();
 void clearRamps14Outputs();
 void ensureRamps14MotionFanOn();
+void refreshRamps14MotionFanCooldown();
+void clearRamps14MotionFanCooldown();
+void updateRamps14MotionFanCooldown();
+unsigned long ramps14MotionFanRemainingMs();
 bool readRamps14LimitActive(const String &limitId);
 unsigned long profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps);
 void slowDelayMicroseconds(unsigned long delayUs);
 bool defaultDigitalStepBackendForAxis(const String &axis);
 long runRamps14Steps(const Ramps14AxisPins &pins, bool digitalStepBackend, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool holdEnabled, const String &targetLimit, bool stopOnLimit, bool &limitHit);
+
+bool ramps14MotionFanAutoActive = false;
+unsigned long ramps14MotionFanKeepaliveUntilMs = 0;
 #endif
 
 void setup() {
@@ -87,6 +94,10 @@ void loop() {
     motionEnabled = false;
     sendEvent("watchdog", "motion_disabled");
   }
+
+#if COOKBOT_RAMPS14_COMMISSIONING
+  updateRamps14MotionFanCooldown();
+#endif
 }
 
 void handleLine(const String &line) {
@@ -405,6 +416,7 @@ void handleRamps14JogAxis(const String &id, const String &line) {
     digitalWrite(stepPin, LOW);
     delayMicroseconds((unsigned int)stepDelayUs);
   }
+  refreshRamps14MotionFanCooldown();
   digitalWrite(enablePin, HIGH);
 
   sendOk(id, "\"jogged\":true,\"axis\":\"" + axis + "\",\"steps\":" + String(steps) + ",\"direction\":" + String(direction == 0 ? 0 : 1));
@@ -573,6 +585,15 @@ void handleRamps14SetOutput(const String &id, const String &line) {
     digitalWrite(pin, LOW);
   }
 
+  if (outputId == "D9") {
+    if (pwm == 0 || durationMs > 0) {
+      clearRamps14MotionFanCooldown();
+    } else {
+      ramps14MotionFanAutoActive = false;
+      ramps14MotionFanKeepaliveUntilMs = 0;
+    }
+  }
+
   sendOk(id, "\"output\":\"" + outputId + "\",\"pin\":" + String(pin) + ",\"pwm\":" + String(pwm) + ",\"duration_ms\":" + String(durationMs) + ",\"latched\":" + boolJson(durationMs == 0));
 #else
   (void)line;
@@ -675,6 +696,7 @@ bool resolveRamps14OutputPin(const String &outputId, uint8_t &pin) {
 }
 
 void clearRamps14Outputs() {
+  clearRamps14MotionFanCooldown();
   pinMode(8, OUTPUT);
   pinMode(9, OUTPUT);
   pinMode(10, OUTPUT);
@@ -686,6 +708,39 @@ void clearRamps14Outputs() {
 void ensureRamps14MotionFanOn() {
   pinMode(9, OUTPUT);
   digitalWrite(9, HIGH);
+  refreshRamps14MotionFanCooldown();
+}
+
+void refreshRamps14MotionFanCooldown() {
+  ramps14MotionFanAutoActive = true;
+  ramps14MotionFanKeepaliveUntilMs = millis() + COOKBOT_RAMPS14_MOTION_FAN_COOLDOWN_MS;
+}
+
+void clearRamps14MotionFanCooldown() {
+  ramps14MotionFanAutoActive = false;
+  ramps14MotionFanKeepaliveUntilMs = 0;
+}
+
+void updateRamps14MotionFanCooldown() {
+  if (!ramps14MotionFanAutoActive) {
+    return;
+  }
+  if ((long)(millis() - ramps14MotionFanKeepaliveUntilMs) < 0) {
+    return;
+  }
+  digitalWrite(9, LOW);
+  clearRamps14MotionFanCooldown();
+}
+
+unsigned long ramps14MotionFanRemainingMs() {
+  if (!ramps14MotionFanAutoActive) {
+    return 0;
+  }
+  unsigned long now = millis();
+  if ((long)(ramps14MotionFanKeepaliveUntilMs - now) <= 0) {
+    return 0;
+  }
+  return ramps14MotionFanKeepaliveUntilMs - now;
 }
 
 bool readRamps14LimitActive(const String &limitId) {
@@ -785,6 +840,7 @@ long runRamps14Steps(const Ramps14AxisPins &pins, bool digitalStepBackend, long 
   if (!holdEnabled) {
     digitalWrite(pins.enablePin, HIGH);
   }
+  refreshRamps14MotionFanCooldown();
   return moved;
 }
 #endif
@@ -835,7 +891,12 @@ String selfTestJson() {
 
 String firmwareStatusJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  return "{\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.1.0\",\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bench_unlocked\":" + boolJson(benchUnlocked) + ",\"estop\":" + boolJson(estopActive) + ",\"motion_enabled\":" + boolJson(motionEnabled) + ",\"watchdog_timeout_ms\":" + String(WATCHDOG_TIMEOUT_MS) + "}";
+  String data = "{\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.1.0\",\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bench_unlocked\":" + boolJson(benchUnlocked) + ",\"estop\":" + boolJson(estopActive) + ",\"motion_enabled\":" + boolJson(motionEnabled) + ",\"watchdog_timeout_ms\":" + String(WATCHDOG_TIMEOUT_MS);
+#if COOKBOT_RAMPS14_COMMISSIONING
+  data += ",\"motion_fan_output\":\"D9\",\"motion_fan_cooldown_ms\":" + String(COOKBOT_RAMPS14_MOTION_FAN_COOLDOWN_MS) + ",\"motion_fan_auto_active\":" + boolJson(ramps14MotionFanAutoActive) + ",\"motion_fan_remaining_ms\":" + String(ramps14MotionFanRemainingMs());
+#endif
+  data += "}";
+  return data;
 }
 
 String inputsJson() {

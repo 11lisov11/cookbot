@@ -242,8 +242,11 @@ python scripts\hardware_tooling.py mega-ramps14-output --port COM6 --output D9 -
 
 The connected controller's fan is verified on `D9`. The RAMPS commissioning
 firmware automatically turns `D9` on before every supervised motor movement
-(`jog_axis`, `move_axis`, or `seek_limit`) and leaves it on for driver cooling.
-Use `mega-ramps14-output --output D9 --pwm 0` to turn it off after testing.
+(`jog_axis`, `move_axis`, or `seek_limit`) and keeps it running for the
+post-motion cooldown (`COOKBOT_RAMPS14_MOTION_FAN_COOLDOWN_MS`, default
+`120000` ms) after the last step. Manual `set_output D9` is still available for
+diagnostics and latches until changed; use `mega-ramps14-output --output D9 --pwm 0`
+to release a manual override.
 `D8` and `D10` remain available for supervised commissioning, but must not be
 treated as heaters or autonomous cooking outputs.
 

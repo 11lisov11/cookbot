@@ -20,6 +20,12 @@
 #define COOKBOT_RAMPS14_COMMISSIONING 0
 #endif
 
+// In RAMPS 1.4 commissioning mode the D9 cooling fan is turned on before any
+// supervised motor movement and remains on after the last step for this long.
+#ifndef COOKBOT_RAMPS14_MOTION_FAN_COOLDOWN_MS
+#define COOKBOT_RAMPS14_MOTION_FAN_COOLDOWN_MS 120000UL
+#endif
+
 // Placeholder only. Do not use these as real pins.
 #ifndef COOKBOT_AXIS_COUNT
 #if COOKBOT_RAMPS14_COMMISSIONING

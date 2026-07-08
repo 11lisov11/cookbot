@@ -506,13 +506,6 @@ def cmd_mega_ramps14_axis_sweep(args: argparse.Namespace) -> int:
         return _fail("invalid_sweep_pulse", False, {}, 2)
 
     output_args = argparse.Namespace(port=args.port, baud=args.baud, dry_run=args.dry_run)
-    result = _send_ramps14_motion_command(
-        output_args,
-        {"id": "D9_output", "command": "set_output", "output": "D9", "pwm": 255, "duration_ms": 0},
-    )
-    if result != 0:
-        return result
-
     for axis in axes:
         is_slider = axis in {"SLIDER", "E0"}
         steps = args.slider_steps if is_slider else args.steps
@@ -544,10 +537,7 @@ def cmd_mega_ramps14_axis_sweep(args: argparse.Namespace) -> int:
         result = _send_ramps14_motion_command(output_args, disable)
         if result != 0:
             return result
-    return _send_ramps14_motion_command(
-        output_args,
-        {"id": "D9_output", "command": "set_output", "output": "D9", "pwm": 255, "duration_ms": 0},
-    )
+    return 0
 
 
 def cmd_mega_ramps14_edge_scan(args: argparse.Namespace) -> int:
@@ -566,12 +556,6 @@ def cmd_mega_ramps14_edge_scan(args: argparse.Namespace) -> int:
 
     transport_args = argparse.Namespace(port=args.port, baud=args.baud, dry_run=args.dry_run)
     limit = f"{args.axis}_MIN"
-    result, _ = _exchange_ramps14_motion_command(
-        transport_args,
-        {"id": "D9_output", "command": "set_output", "output": "D9", "pwm": 255, "duration_ms": 0},
-    )
-    if result != 0:
-        return result
 
     home_command = {
         "id": f"{args.axis}_{limit}_edge_home",
@@ -636,14 +620,8 @@ def cmd_mega_ramps14_edge_scan(args: argparse.Namespace) -> int:
         transport_args,
         {"id": f"{args.axis}_enable", "command": "set_axis_enabled", "axis": args.axis, "enabled": 0},
     )
-    fan_result = _send_ramps14_motion_command(
-        transport_args,
-        {"id": "D9_output", "command": "set_output", "output": "D9", "pwm": 255, "duration_ms": 0},
-    )
     if disable_result != 0:
         return disable_result
-    if fan_result != 0:
-        return fan_result
     if not args.dry_run and not return_response.get("data", {}).get("limit_hit"):
         return _fail("edge_return_limit_not_hit", False, return_response, 8)
     return 0

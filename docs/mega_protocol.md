@@ -40,9 +40,9 @@ Response:
 - `step_backend` is `direct` or `digital`. `direct` uses direct AVR port writes for speed. `digital` uses Arduino `digitalWrite`, matching the original `jog_axis` pulse path. `SLIDER`/`E0` defaults to `digital`; other axes default to `direct`.
 - `move_axis` and `seek_limit` accept `min_delay_us` up to `200000` and `start_delay_us` up to `250000` for worm-gear/low-torque bring-up. Long slow moves may take minutes; the PC tooling sizes its serial timeout from the requested step count and delay.
 - `set_axis_enabled`: enables or disables one RAMPS stepper driver. Fields: `axis`, `enabled` (`0` or `1`). ESTOP clears all driver enables.
-- `jog_axis`, `move_axis`, and `seek_limit` automatically turn RAMPS `D9` on for driver cooling before movement. Use `set_output` with `{"output":"D9","pwm":0}` to turn it off after testing.
+- `jog_axis`, `move_axis`, and `seek_limit` automatically turn RAMPS `D9` on for driver cooling before movement and refresh a post-motion cooldown timer after the last step. The default cooldown is `COOKBOT_RAMPS14_MOTION_FAN_COOLDOWN_MS=120000` ms.
 - `move_axis` and `seek_limit` disable the driver at command completion unless hold is requested.
-- `set_output`: supervised RAMPS MOSFET output control for `D8`, `D9`, or `D10`. Fields: `output`, `pwm` (`0..255`), optional `duration_ms` (`0` latches until changed). ESTOP clears all RAMPS outputs.
+- `set_output`: supervised RAMPS MOSFET output control for `D8`, `D9`, or `D10`. Fields: `output`, `pwm` (`0..255`), optional `duration_ms` (`0` latches until changed). Manual `set_output` on `D9` is a diagnostic override; use `pwm=0` to release it. ESTOP clears all RAMPS outputs and fan cooldown state.
 - These commands are for supervised bench commissioning only. They are not autonomous motion control and must not be used by recipes or AI.
 
 ## Bench Commands
