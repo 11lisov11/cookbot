@@ -194,6 +194,8 @@ def _generated_artifacts() -> list[dict[str, str]]:
         ".pio/build/cookbot_mega2560/firmware.elf",
         ".pio/build/cookbot_mega2560_bench/firmware.hex",
         ".pio/build/cookbot_mega2560_bench/firmware.elf",
+        ".pio/build/cookbot_mega2560_ramps14_bluetooth/firmware.hex",
+        ".pio/build/cookbot_mega2560_ramps14_bluetooth/firmware.elf",
     ]
     for rel in firmware_files:
         if (ROOT / rel).exists():
@@ -206,6 +208,9 @@ def _generated_status() -> dict[str, bool]:
         "web_dist": (ROOT / "web" / "dist" / "index.html").exists(),
         "platformio_locked_hex": (ROOT / ".pio" / "build" / "cookbot_mega2560" / "firmware.hex").exists(),
         "platformio_bench_hex": (ROOT / ".pio" / "build" / "cookbot_mega2560_bench" / "firmware.hex").exists(),
+        "platformio_bluetooth_hex": (
+            ROOT / ".pio" / "build" / "cookbot_mega2560_ramps14_bluetooth" / "firmware.hex"
+        ).exists(),
     }
 
 

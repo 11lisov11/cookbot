@@ -30,6 +30,7 @@ echo "CookBot: Arduino Mega compile"
 if command -v arduino-cli >/dev/null 2>&1; then
   arduino-cli compile --fqbn arduino:avr:mega mega_firmware/cookbot_mega_firmware
   arduino-cli compile --fqbn arduino:avr:mega --build-property "build.extra_flags=-DCOOKBOT_BENCH_OUTPUTS_ENABLED=1" mega_firmware/cookbot_mega_firmware
+  arduino-cli compile --fqbn arduino:avr:mega --build-property "build.extra_flags=-DCOOKBOT_HARDWARE_CONFIGURED=1 -DCOOKBOT_RAMPS14_COMMISSIONING=1 -DCOOKBOT_BLUETOOTH_UART_ENABLED=1 -DCOOKBOT_BLUETOOTH_UART_PORT=2 -DCOOKBOT_BLUETOOTH_BAUD=9600UL" mega_firmware/cookbot_mega_firmware
 else
   echo "WARNING: arduino-cli not found; skipping firmware compile"
 fi
@@ -38,9 +39,11 @@ echo "CookBot: PlatformIO Mega build"
 if command -v pio >/dev/null 2>&1; then
   pio run -e cookbot_mega2560
   pio run -e cookbot_mega2560_bench
+  pio run -e cookbot_mega2560_ramps14_bluetooth
 elif python -c "import platformio" >/dev/null 2>&1; then
   python -m platformio run -e cookbot_mega2560
   python -m platformio run -e cookbot_mega2560_bench
+  python -m platformio run -e cookbot_mega2560_ramps14_bluetooth
 else
   echo "WARNING: PlatformIO pio not found; skipping PlatformIO compile"
 fi
@@ -49,6 +52,10 @@ echo "CookBot: hardware automation dry-runs"
 python scripts/hardware_tooling.py hardware-doctor --dry-run --json
 python scripts/hardware_tooling.py unoq-adb-deploy --dry-run
 python scripts/hardware_tooling.py unoq-adb-logs --dry-run
+python scripts/hardware_tooling.py unoq-bluetooth-check --dry-run --json
+python scripts/hardware_tooling.py unoq-bluetooth-pair --address AA:BB:CC:DD:EE:FF --dry-run
+python scripts/hardware_tooling.py unoq-bluetooth-probe --address AA:BB:CC:DD:EE:FF --dry-run
+bash -n scripts/unoq_bluetooth_capabilities.sh
 python scripts/hardware_tooling.py mega-platformio-upload --dry-run --port DRY_RUN_PORT
 python scripts/hardware_tooling.py mega-serial-probe --dry-run --port DRY_RUN_PORT
 python scripts/hardware_tooling.py commissioning-check --dry-run

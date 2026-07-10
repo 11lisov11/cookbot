@@ -76,6 +76,22 @@ powershell -ExecutionPolicy Bypass -File scripts/unoq_adb_logs.ps1
 
 If ADB reports UID `0`, the script stops because older UNO Q images used root ADB behavior. Update the UNO Q image before deploying.
 
+Bluetooth SPP setup after ADB is ready:
+
+```powershell
+python scripts/hardware_tooling.py unoq-bluetooth-check --address AA:BB:CC:DD:EE:FF
+python scripts/hardware_tooling.py unoq-bluetooth-pair --address AA:BB:CC:DD:EE:FF --pin 1234
+python scripts/hardware_tooling.py unoq-bluetooth-probe --address AA:BB:CC:DD:EE:FF --channel 1
+```
+
+Deploy CookBot configured for RFCOMM:
+
+```powershell
+python scripts/hardware_tooling.py unoq-adb-deploy --mega-transport bluetooth_rfcomm --bluetooth-address AA:BB:CC:DD:EE:FF --bluetooth-channel 1 --bind 0.0.0.0
+```
+
+See `docs/bluetooth_link.md` for UART pin conflicts and pairing requirements.
+
 ## Commissioning
 
 Dry-run:

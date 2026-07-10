@@ -1,0 +1,48 @@
+rest:
+  - resource: http://127.0.0.1:8000/state
+    method: GET
+    timeout: 5
+    scan_interval: 5
+    headers:
+      X-CookBot-Token: !secret cookbot_api_token
+    sensor:
+      - name: CookBot State
+        unique_id: cookbot_state
+        value_template: "{{ value_json.mode }}"
+        json_attributes:
+          - estop
+          - homed
+          - calibrated
+          - motion_enabled
+          - services
+          - queue_depth
+          - last_error
+
+template:
+  - binary_sensor:
+      - name: CookBot Emergency Stop
+        unique_id: cookbot_emergency_stop
+        device_class: problem
+        state: "{{ state_attr('sensor.cookbot_state', 'estop') | bool }}"
+      - name: CookBot Homed
+        unique_id: cookbot_homed
+        state: "{{ state_attr('sensor.cookbot_state', 'homed') | bool }}"
+      - name: CookBot Motion Enabled
+        unique_id: cookbot_motion_enabled
+        state: "{{ state_attr('sensor.cookbot_state', 'motion_enabled') | bool }}"
+
+rest_command:
+  cookbot_estop:
+    url: http://127.0.0.1:8000/estop
+    method: POST
+    timeout: 5
+    headers:
+      X-CookBot-Token: !secret cookbot_api_token
+
+script:
+  cookbot_emergency_stop:
+    alias: CookBot emergency stop
+    icon: mdi:alert-octagon
+    sequence:
+      - action: rest_command.cookbot_estop
+    mode: single

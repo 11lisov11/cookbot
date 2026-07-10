@@ -18,8 +18,14 @@ bool benchUnlocked = false;
 bool simulatedFaultActive = false;
 String simulatedFaultCode = "";
 unsigned long lastCommandAt = 0;
+Print *responseOutput = &Serial;
+String usbInputLine = "";
+#if COOKBOT_BLUETOOTH_UART_ENABLED
+String bluetoothInputLine = "";
+#endif
 
 void handleLine(const String &line);
+void processTransportInput(Stream &input, Print &output, String &buffer);
 String extractJsonString(const String &line, const String &key);
 long extractJsonInt(const String &line, const String &key, long defaultValue);
 void handleBenchUnlock(const String &id, const String &line);
@@ -40,9 +46,11 @@ String benchOutputsEnabledJson();
 String boolJson(bool value);
 String faultsJson();
 String ramps14CommissioningJson();
+String bluetoothUartEnabledJson();
 void sendOk(const String &id, const String &data);
 void sendError(const String &id, const String &error);
 void sendEvent(const String &event, const String &message);
+void sendEventTo(Print &output, const String &event, const String &message);
 
 #if COOKBOT_RAMPS14_COMMISSIONING
 struct Ramps14AxisPins {
@@ -72,6 +80,9 @@ unsigned long ramps14MotionFanKeepaliveUntilMs = 0;
 
 void setup() {
   Serial.begin(115200);
+#if COOKBOT_BLUETOOTH_UART_ENABLED
+  COOKBOT_BLUETOOTH_SERIAL.begin(COOKBOT_BLUETOOTH_BAUD);
+#endif
 #if COOKBOT_RAMPS14_COMMISSIONING
   clearRamps14AxisEnables();
   clearRamps14Outputs();
@@ -81,14 +92,10 @@ void setup() {
 }
 
 void loop() {
-  if (Serial.available() > 0) {
-    String line = Serial.readStringUntil('\n');
-    line.trim();
-    if (line.length() > 0) {
-      handleLine(line);
-      lastCommandAt = millis();
-    }
-  }
+  processTransportInput(Serial, Serial, usbInputLine);
+#if COOKBOT_BLUETOOTH_UART_ENABLED
+  processTransportInput(COOKBOT_BLUETOOTH_SERIAL, COOKBOT_BLUETOOTH_SERIAL, bluetoothInputLine);
+#endif
 
   if (motionEnabled && millis() - lastCommandAt > WATCHDOG_TIMEOUT_MS) {
     motionEnabled = false;
@@ -100,6 +107,34 @@ void loop() {
 #endif
 }
 
+void processTransportInput(Stream &input, Print &output, String &buffer) {
+  while (input.available() > 0) {
+    char next = (char)input.read();
+    if (next == '\n' || next == '\r') {
+      buffer.trim();
+      if (buffer.length() > 0) {
+        Print *previousOutput = responseOutput;
+        responseOutput = &output;
+        handleLine(buffer);
+        responseOutput = previousOutput;
+        lastCommandAt = millis();
+      }
+      buffer = "";
+      continue;
+    }
+
+    if (buffer.length() >= COOKBOT_TRANSPORT_MAX_LINE_BYTES) {
+      Print *previousOutput = responseOutput;
+      responseOutput = &output;
+      sendError("mega", "transport_line_too_long");
+      responseOutput = previousOutput;
+      buffer = "";
+      continue;
+    }
+    buffer += next;
+  }
+}
+
 void handleLine(const String &line) {
   String id = extractJsonString(line, "id");
   String command = extractJsonString(line, "command");
@@ -109,7 +144,7 @@ void handleLine(const String &line) {
 
   if (command == "hello") {
     String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-    sendOk(id, String("\"name\":\"CookBot Mega\",\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.1.0\",\"protocol_version\":1,\"hardware_configured\":") + configured + ",\"capabilities\":" + capabilitiesJson());
+    sendOk(id, String("\"name\":\"CookBot Mega\",\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.2.0\",\"protocol_version\":1,\"hardware_configured\":") + configured + ",\"capabilities\":" + capabilitiesJson());
     return;
   }
   if (command == "ping") {
@@ -852,7 +887,13 @@ void sendState(const String &id) {
   data += homed ? "true" : "false";
   data += ",\"calibrated\":false,\"motion_enabled\":";
   data += motionEnabled ? "true" : "false";
-  data += ",\"services\":{\"mega\":\"serial\",\"backend\":\"external\"},\"axes\":[],\"gripper\":{\"position\":0,\"homed\":";
+  data += ",\"services\":{\"mega\":";
+#if COOKBOT_BLUETOOTH_UART_ENABLED
+  data += "\"usb_serial+bluetooth_rfcomm\"";
+#else
+  data += "\"usb_serial\"";
+#endif
+  data += ",\"backend\":\"external\"},\"axes\":[],\"gripper\":{\"position\":0,\"homed\":";
   data += homed ? "true" : "false";
   data += ",\"calibrated\":false,\"moving\":false},\"limit_switches\":{},\"queue_depth\":0,\"last_error\":";
   if (simulatedFaultActive) {
@@ -868,12 +909,12 @@ void sendState(const String &id) {
 
 String capabilitiesJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  return "{\"protocol_version\":1,\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.1.0\",\"hardware_configured\":" + configured + ",\"motion_commands_enabled\":false,\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"supported_commands\":[\"hello\",\"ping\",\"get_state\",\"get_capabilities\",\"get_hardware_config\",\"get_limit_switches\",\"self_test\",\"get_firmware_status\",\"read_inputs\",\"bench_unlock\",\"bench_test_output\",\"jog_axis\",\"move_axis\",\"seek_limit\",\"set_output\",\"set_axis_enabled\",\"get_faults\",\"inject_fault\",\"clear_faults\",\"enable_motion\",\"home_all\",\"set_joint\",\"set_gripper\",\"estop\",\"clear_estop\"]}";
+  return "{\"protocol_version\":1,\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.2.0\",\"hardware_configured\":" + configured + ",\"motion_commands_enabled\":false,\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"supported_transports\":[\"usb_serial\",\"bluetooth_rfcomm\"],\"supported_commands\":[\"hello\",\"ping\",\"get_state\",\"get_capabilities\",\"get_hardware_config\",\"get_limit_switches\",\"self_test\",\"get_firmware_status\",\"read_inputs\",\"bench_unlock\",\"bench_test_output\",\"jog_axis\",\"move_axis\",\"seek_limit\",\"set_output\",\"set_axis_enabled\",\"get_faults\",\"inject_fault\",\"clear_faults\",\"enable_motion\",\"home_all\",\"set_joint\",\"set_gripper\",\"estop\",\"clear_estop\"]}";
 }
 
 String hardwareConfigJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  return "{\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"axis_count\":" + String(COOKBOT_AXIS_COUNT) + ",\"limit_switch_count\":" + String(COOKBOT_LIMIT_SWITCH_COUNT) + ",\"estop_pin\":" + String(COOKBOT_ESTOP_PIN) + ",\"gripper_pin\":" + String(COOKBOT_GRIPPER_PIN) + ",\"axis_pin_configured\":" + ramps14CommissioningJson() + ",\"note\":\"ramps14_jog_only_no_autonomous_motion\"}";
+  return "{\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"axis_count\":" + String(COOKBOT_AXIS_COUNT) + ",\"limit_switch_count\":" + String(COOKBOT_LIMIT_SWITCH_COUNT) + ",\"estop_pin\":" + String(COOKBOT_ESTOP_PIN) + ",\"gripper_pin\":" + String(COOKBOT_GRIPPER_PIN) + ",\"axis_pin_configured\":" + ramps14CommissioningJson() + ",\"note\":\"ramps14_jog_only_no_autonomous_motion\"}";
 }
 
 String limitSwitchesJson() {
@@ -886,12 +927,15 @@ String limitSwitchesJson() {
 
 String selfTestJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  return "{\"ok\":true,\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"motion_outputs_enabled\":" + ramps14CommissioningJson() + ",\"checks\":[{\"id\":\"serial\",\"ok\":true},{\"id\":\"hardware_config\",\"ok\":true,\"detail\":\"ramps14_commissioning_or_placeholder\"},{\"id\":\"motion_outputs\",\"ok\":true,\"detail\":\"jog_only\"},{\"id\":\"bench_outputs\",\"ok\":true,\"detail\":\"compile_time_locked\"}]}";
+  return "{\"ok\":true,\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"motion_outputs_enabled\":" + ramps14CommissioningJson() + ",\"checks\":[{\"id\":\"usb_serial\",\"ok\":true},{\"id\":\"bluetooth_uart\",\"ok\":true,\"enabled\":" + bluetoothUartEnabledJson() + "},{\"id\":\"hardware_config\",\"ok\":true,\"detail\":\"ramps14_commissioning_or_placeholder\"},{\"id\":\"motion_outputs\",\"ok\":true,\"detail\":\"jog_only\"},{\"id\":\"bench_outputs\",\"ok\":true,\"detail\":\"compile_time_locked\"}]}";
 }
 
 String firmwareStatusJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  String data = "{\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.1.0\",\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bench_unlocked\":" + boolJson(benchUnlocked) + ",\"estop\":" + boolJson(estopActive) + ",\"motion_enabled\":" + boolJson(motionEnabled) + ",\"watchdog_timeout_ms\":" + String(WATCHDOG_TIMEOUT_MS);
+  String data = "{\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.2.0\",\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"bench_unlocked\":" + boolJson(benchUnlocked) + ",\"estop\":" + boolJson(estopActive) + ",\"motion_enabled\":" + boolJson(motionEnabled) + ",\"watchdog_timeout_ms\":" + String(WATCHDOG_TIMEOUT_MS);
+#if COOKBOT_BLUETOOTH_UART_ENABLED
+  data += ",\"bluetooth_uart_port\":" + String(COOKBOT_BLUETOOTH_UART_PORT) + ",\"bluetooth_baud\":" + String(COOKBOT_BLUETOOTH_BAUD) + ",\"bluetooth_rx_pin\":" + String(COOKBOT_BLUETOOTH_RX_PIN) + ",\"bluetooth_tx_pin\":" + String(COOKBOT_BLUETOOTH_TX_PIN);
+#endif
 #if COOKBOT_RAMPS14_COMMISSIONING
   data += ",\"motion_fan_output\":\"D9\",\"motion_fan_cooldown_ms\":" + String(COOKBOT_RAMPS14_MOTION_FAN_COOLDOWN_MS) + ",\"motion_fan_auto_active\":" + boolJson(ramps14MotionFanAutoActive) + ",\"motion_fan_remaining_ms\":" + String(ramps14MotionFanRemainingMs());
 #endif
@@ -926,6 +970,14 @@ String ramps14CommissioningJson() {
 #endif
 }
 
+String bluetoothUartEnabledJson() {
+#if COOKBOT_BLUETOOTH_UART_ENABLED
+  return "true";
+#else
+  return "false";
+#endif
+}
+
 String boolJson(bool value) {
   return value ? "true" : "false";
 }
@@ -938,25 +990,32 @@ String faultsJson() {
 }
 
 void sendOk(const String &id, const String &data) {
-  Serial.print("{\"id\":\"");
-  Serial.print(id);
-  Serial.print("\",\"ok\":true,\"data\":{");
-  Serial.print(data);
-  Serial.println("},\"error\":null}");
+  responseOutput->print("{\"id\":\"");
+  responseOutput->print(id);
+  responseOutput->print("\",\"ok\":true,\"data\":{");
+  responseOutput->print(data);
+  responseOutput->println("},\"error\":null}");
 }
 
 void sendError(const String &id, const String &error) {
-  Serial.print("{\"id\":\"");
-  Serial.print(id);
-  Serial.print("\",\"ok\":false,\"data\":{},\"error\":\"");
-  Serial.print(error);
-  Serial.println("\"}");
+  responseOutput->print("{\"id\":\"");
+  responseOutput->print(id);
+  responseOutput->print("\",\"ok\":false,\"data\":{},\"error\":\"");
+  responseOutput->print(error);
+  responseOutput->println("\"}");
 }
 
 void sendEvent(const String &event, const String &message) {
-  Serial.print("{\"event\":\"");
-  Serial.print(event);
-  Serial.print("\",\"source\":\"mega\",\"message\":\"");
-  Serial.print(message);
-  Serial.println("\"}");
+  sendEventTo(Serial, event, message);
+#if COOKBOT_BLUETOOTH_UART_ENABLED
+  sendEventTo(COOKBOT_BLUETOOTH_SERIAL, event, message);
+#endif
+}
+
+void sendEventTo(Print &output, const String &event, const String &message) {
+  output.print("{\"event\":\"");
+  output.print(event);
+  output.print("\",\"source\":\"mega\",\"message\":\"");
+  output.print(message);
+  output.println("\"}");
 }

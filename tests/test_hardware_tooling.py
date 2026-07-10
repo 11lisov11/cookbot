@@ -317,6 +317,53 @@ def test_commissioning_and_deploy_dry_runs_do_not_touch_hardware():
     assert "commissioning sequence" in commissioning.stdout
 
 
+def test_bluetooth_tooling_requires_explicit_address_and_has_safe_dry_runs():
+    missing_pair = run_tool("unoq-bluetooth-pair", "--dry-run")
+    assert missing_pair.returncode == 2
+    assert "bluetooth_address_required" in missing_pair.stdout
+
+    invalid = run_tool("unoq-bluetooth-probe", "--address", "invalid", "--dry-run")
+    assert invalid.returncode == 2
+    assert "bluetooth_address_invalid" in invalid.stdout
+
+    pair = run_tool(
+        "unoq-bluetooth-pair",
+        "--address",
+        "AA:BB:CC:DD:EE:FF",
+        "--pin",
+        "1234",
+        "--dry-run",
+    )
+    assert pair.returncode == 0
+    assert "PIN is not printed" in pair.stdout
+
+    probe = run_tool(
+        "unoq-bluetooth-probe",
+        "--address",
+        "AA:BB:CC:DD:EE:FF",
+        "--channel",
+        "1",
+        "--dry-run",
+    )
+    assert probe.returncode == 0
+    assert "bluetooth_rfcomm_probe.py" in probe.stdout
+
+    standalone = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "bluetooth_rfcomm_probe.py"),
+            "--address",
+            "AA:BB:CC:DD:EE:FF",
+            "--dry-run",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert standalone.returncode == 0
+    assert '"dry_run": true' in standalone.stdout
+
+
 def test_hardware_doctor_dry_run_reports_lock_and_mock_connections():
     result = run_tool(
         "hardware-doctor",

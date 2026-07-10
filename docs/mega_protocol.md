@@ -1,6 +1,7 @@
 # CookBot Mega Protocol
 
-CookBot Mega uses newline-delimited JSON over USB Serial or TCP fake Mega.
+CookBot Mega uses newline-delimited JSON over USB Serial, Bluetooth Classic
+SPP/RFCOMM, or TCP fake Mega.
 
 Request:
 
@@ -44,6 +45,18 @@ Response:
 - `move_axis` and `seek_limit` disable the driver at command completion unless hold is requested.
 - `set_output`: supervised RAMPS MOSFET output control for `D8`, `D9`, or `D10`. Fields: `output`, `pwm` (`0..255`), optional `duration_ms` (`0` latches until changed). Manual `set_output` on `D9` is a diagnostic override; use `pwm=0` to release it. ESTOP clears all RAMPS outputs and fan cooldown state.
 - These commands are for supervised bench commissioning only. They are not autonomous motion control and must not be used by recipes or AI.
+
+## Bluetooth UART
+
+- Build profile: `cookbot_mega2560_ramps14_bluetooth`.
+- Mega UART: `Serial2`, RX2 pin `17`, TX2 pin `16`.
+- Default module-side UART baud: `9600`, compile-time configurable.
+- USB Serial remains available at `115200` simultaneously.
+- Responses are written back to the transport that supplied each command.
+- `get_firmware_status` reports Bluetooth enable state, UART number, baud, and
+  pins when compiled with Bluetooth enabled.
+- Input lines are capped at `COOKBOT_TRANSPORT_MAX_LINE_BYTES`; oversized input
+  receives `transport_line_too_long`.
 
 ## Bench Commands
 

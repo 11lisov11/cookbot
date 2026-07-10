@@ -20,6 +20,7 @@ class HardwareReadinessStore:
     def _default_items(self) -> list[HardwareReadinessItem]:
         return [
             HardwareReadinessItem(id="pin_map", label="Mega pin map verified"),
+            HardwareReadinessItem(id="controller_transport", label="Mega to UNO Q transport verified"),
             HardwareReadinessItem(id="driver_types", label="Motor/servo driver types identified"),
             HardwareReadinessItem(id="limit_polarity", label="Limit switch polarity verified"),
             HardwareReadinessItem(id="external_power", label="External motor power and common ground verified"),
@@ -28,4 +29,3 @@ class HardwareReadinessStore:
             HardwareReadinessItem(id="homing_direction", label="Safe homing direction verified for each axis"),
             HardwareReadinessItem(id="low_power_test", label="Low-power motion test completed"),
         ]
-

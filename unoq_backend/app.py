@@ -58,7 +58,13 @@ from .recipe_runtime import RecipeRuntime
 from .recipes import RecipeEngine
 from .safety import SafetyValidator
 from .simulator import CookBotSimulator
-from .transports import LocalFakeMegaTransport, MegaTransport, SerialMegaTransport, TcpMegaTransport
+from .transports import (
+    BluetoothRfcommMegaTransport,
+    LocalFakeMegaTransport,
+    MegaTransport,
+    SerialMegaTransport,
+    TcpMegaTransport,
+)
 from .workspace import WorkspaceStore
 
 
@@ -71,6 +77,9 @@ REQUIRED_PRODUCT_DOCS = [
     Path("docs/mega_protocol.md"),
     Path("docs/hardware_automation.md"),
     Path("docs/commissioning_runbook.md"),
+    Path("docs/bluetooth_link.md"),
+    Path("docs/smart_home_integration.md"),
+    Path("docs/vendor_axis4ui_protocol.md"),
     Path("docs/release_bundle.md"),
     Path("docs/safety.md"),
     Path("docs/no_hardware_testing.md"),
@@ -79,7 +88,14 @@ REQUIRED_PRODUCT_DOCS = [
 
 ERROR_TAXONOMY = {
     "safety_error": ["estop_active", "motion_not_enabled", "not_homed", "limit_exceeded", "real_motion_locked"],
-    "transport_error": ["mega_transport_error", "unknown_command", "bad_request"],
+    "transport_error": [
+        "mega_transport_error",
+        "unknown_command",
+        "bad_request",
+        "bluetooth_address_not_configured",
+        "bluetooth_address_invalid",
+        "bluetooth_rfcomm_error",
+    ],
     "camera_error": ["camera_disabled"],
     "ai_error": ["forbidden_ai_step", "invalid_move_joint_payload", "invalid_gripper_payload"],
     "recipe_error": ["unknown_recipe", "recipe_locked", "forbidden_recipe_step"],
@@ -162,6 +178,12 @@ class CookBotController:
             bind=self.settings.bind,
             port=self.settings.port,
             api_auth_required=bool(self.settings.api_token),
+            bluetooth_configured=bool(self.settings.bluetooth_address),
+            bluetooth_channel=(
+                self.settings.bluetooth_channel
+                if self.settings.mega_transport == "bluetooth_rfcomm"
+                else None
+            ),
         )
 
     def version(self) -> VersionResponse:
@@ -203,6 +225,18 @@ class CookBotController:
                 detail="api_schema_version=1",
             )
         )
+        if self.settings.mega_transport == "bluetooth_rfcomm":
+            checks.append(
+                DiagnosticCheck(
+                    name="bluetooth_config",
+                    ok=bool(self.settings.bluetooth_address),
+                    detail=(
+                        f"rfcomm_channel={self.settings.bluetooth_channel}"
+                        if self.settings.bluetooth_address
+                        else "bluetooth_address_not_configured"
+                    ),
+                )
+            )
         await add_transport_check("mega_hello", "hello")
         await add_transport_check("mega_ping", "ping")
         await add_transport_check("mega_state", "get_state")
@@ -295,12 +329,20 @@ class CookBotController:
             )
         )
         release_tooling = Path("scripts/release_tooling.py").exists()
+        smart_home_package = Path("deploy/homeassistant/cookbot_package.yaml").exists()
         release_bundle = Path("dist/release/latest_release_path.txt").exists()
         checks.append(
             DiagnosticCheck(
                 name="release_bundle",
                 ok=release_tooling,
                 detail="latest_ready" if release_bundle else "tooling_ready",
+            )
+        )
+        checks.append(
+            DiagnosticCheck(
+                name="smart_home_integration",
+                ok=smart_home_package,
+                detail="home_assistant_package_ready" if smart_home_package else "missing_home_assistant_package",
             )
         )
 
@@ -533,12 +575,26 @@ class CookBotController:
                     detail=f"COOKBOT_MODE={self.settings.mode}; real motion requires hardware.",
                 )
             )
-        if self.settings.mega_transport != "serial":
+        if self.settings.mega_transport not in {"serial", "bluetooth_rfcomm"}:
             blockers.append(
                 HardwareGateBlocker(
-                    id="mega_transport_not_serial",
-                    label="Mega transport is not serial",
-                    detail=f"COOKBOT_MEGA_TRANSPORT={self.settings.mega_transport}; real motion requires serial.",
+                    id="mega_transport_not_hardware",
+                    label="Mega transport is not a hardware transport",
+                    detail=(
+                        f"COOKBOT_MEGA_TRANSPORT={self.settings.mega_transport}; "
+                        "real motion requires serial or bluetooth_rfcomm."
+                    ),
+                )
+            )
+        if (
+            self.settings.mega_transport == "bluetooth_rfcomm"
+            and not self.settings.bluetooth_address
+        ):
+            blockers.append(
+                HardwareGateBlocker(
+                    id="bluetooth_address_missing",
+                    label="Bluetooth Mega address is missing",
+                    detail="Set COOKBOT_BLUETOOTH_ADDRESS after pairing the SPP module.",
                 )
             )
         if not self.settings.hardware_configured:
@@ -597,6 +653,7 @@ class CookBotController:
         web_source = Path("web/package.json").exists()
         ci_workflow = Path(".github/workflows/check.yml").exists()
         release_tooling = Path("scripts/release_tooling.py").exists()
+        smart_home_package = Path("deploy/homeassistant/cookbot_package.yaml").exists()
         items = [
             ChecklistItem(id="backend", label="Backend responds", ok=True, detail="ok"),
             ChecklistItem(
@@ -670,6 +727,12 @@ class CookBotController:
                 label="Release bundle tooling is available",
                 ok=release_tooling,
                 detail="ready" if release_tooling else "missing_release_tooling",
+            ),
+            ChecklistItem(
+                id="smart_home_integration",
+                label="Home Assistant integration is packaged",
+                ok=smart_home_package,
+                detail="ready" if smart_home_package else "missing_home_assistant_package",
             ),
         ]
         return AcceptanceReport(ok=all(item.ok for item in items), items=items)
@@ -777,7 +840,13 @@ class CookBotController:
                     id="serial_self_test",
                     label="Probe Mega JSON protocol",
                     ok=True,
-                    detail="Probe uses hello, get_firmware_status, self_test, and read_inputs only.",
+                    detail="USB and RFCOMM probes use hello, get_firmware_status, self_test, and read_inputs only.",
+                ),
+                ChecklistItem(
+                    id="bluetooth_spp",
+                    label="Pair Mega Bluetooth SPP",
+                    ok=True,
+                    detail="Uses BlueZ on UNO Q, an explicit MAC/channel, and the dedicated Mega Serial2 UART.",
                 ),
                 ChecklistItem(
                     id="bench_only",
@@ -830,6 +899,24 @@ class CookBotController:
                     description="Protocol-only self-test; no motion commands are sent.",
                 ),
                 CommissioningCommand(
+                    id="bluetooth_build",
+                    label="Mega Bluetooth firmware build",
+                    command="python -m platformio run -e cookbot_mega2560_ramps14_bluetooth",
+                    description="Builds simultaneous USB Serial and Serial2 Bluetooth transport.",
+                ),
+                CommissioningCommand(
+                    id="bluetooth_pair",
+                    label="Pair Mega Bluetooth on UNO Q",
+                    command="python scripts/hardware_tooling.py unoq-bluetooth-pair --address AA:BB:CC:DD:EE:FF --pin 1234",
+                    description="Replace the address and PIN with values verified on the physical SPP module.",
+                ),
+                CommissioningCommand(
+                    id="bluetooth_probe",
+                    label="Mega RFCOMM probe",
+                    command="python scripts/hardware_tooling.py unoq-bluetooth-probe --address AA:BB:CC:DD:EE:FF --channel 1",
+                    description="Runs protocol-only checks over the UNO Q Bluetooth adapter.",
+                ),
+                CommissioningCommand(
                     id="commissioning_dry_run",
                     label="Commissioning dry-run",
                     command="powershell -ExecutionPolicy Bypass -File scripts\\commissioning_check.ps1 --dry-run",
@@ -880,6 +967,12 @@ class CookBotController:
             return LocalFakeMegaTransport(self.fake_device)
         if settings.mega_transport == "fake_tcp":
             return TcpMegaTransport(settings.fake_mega_host, settings.fake_mega_port)
+        if settings.mega_transport == "bluetooth_rfcomm":
+            return BluetoothRfcommMegaTransport(
+                settings.bluetooth_address,
+                settings.bluetooth_channel,
+                settings.bluetooth_timeout_s,
+            )
         return SerialMegaTransport(settings.serial_port, settings.serial_baud)
 
     def _build_ai(self, settings: Settings):

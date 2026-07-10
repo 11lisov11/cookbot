@@ -1,6 +1,7 @@
 [Unit]
 Description=CookBot backend user service
-After=network-online.target
+After=network-online.target bluetooth.target
+Wants=network-online.target bluetooth.target
 
 [Service]
 Type=simple
@@ -10,7 +11,9 @@ Environment=COOKBOT_MEGA_TRANSPORT=fake
 Environment=COOKBOT_CAMERA=mock
 Environment=COOKBOT_AI=mock
 Environment=COOKBOT_BIND=127.0.0.1
-ExecStart=/usr/bin/python3 -m uvicorn unoq_backend.app:app --host ${COOKBOT_BIND} --port 8000
+Environment=COOKBOT_PORT=8000
+EnvironmentFile=-%h/.config/cookbot/cookbot.env
+ExecStart=/usr/bin/python3 -m uvicorn unoq_backend.app:app --host ${COOKBOT_BIND} --port ${COOKBOT_PORT}
 Restart=on-failure
 RestartSec=3
 

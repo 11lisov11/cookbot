@@ -1,8 +1,10 @@
 import argparse
+import base64
 import glob
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -29,12 +31,39 @@ def main() -> int:
 
     adb_deploy = subcommands.add_parser("unoq-adb-deploy")
     adb_deploy.add_argument("--target", default="/home/arduino/cookbot")
+    adb_deploy.add_argument(
+        "--mega-transport",
+        choices=["fake", "serial", "bluetooth_rfcomm"],
+        default="fake",
+    )
+    adb_deploy.add_argument("--bluetooth-address")
+    adb_deploy.add_argument("--bluetooth-channel", type=int, default=1)
+    adb_deploy.add_argument("--bind", default="127.0.0.1")
     adb_deploy.add_argument("--dry-run", action="store_true")
     adb_deploy.set_defaults(fn=cmd_unoq_adb_deploy)
 
     adb_logs = subcommands.add_parser("unoq-adb-logs")
     adb_logs.add_argument("--dry-run", action="store_true")
     adb_logs.set_defaults(fn=cmd_unoq_adb_logs)
+
+    bluetooth_check = subcommands.add_parser("unoq-bluetooth-check")
+    bluetooth_check.add_argument("--address")
+    bluetooth_check.add_argument("--dry-run", action="store_true")
+    bluetooth_check.add_argument("--json", action="store_true")
+    bluetooth_check.set_defaults(fn=cmd_unoq_bluetooth_check)
+
+    bluetooth_pair = subcommands.add_parser("unoq-bluetooth-pair")
+    bluetooth_pair.add_argument("--address")
+    bluetooth_pair.add_argument("--pin", default="1234")
+    bluetooth_pair.add_argument("--dry-run", action="store_true")
+    bluetooth_pair.set_defaults(fn=cmd_unoq_bluetooth_pair)
+
+    bluetooth_probe = subcommands.add_parser("unoq-bluetooth-probe")
+    bluetooth_probe.add_argument("--address")
+    bluetooth_probe.add_argument("--channel", type=int, default=1)
+    bluetooth_probe.add_argument("--target", default="/home/arduino/cookbot")
+    bluetooth_probe.add_argument("--dry-run", action="store_true")
+    bluetooth_probe.set_defaults(fn=cmd_unoq_bluetooth_probe)
 
     pio_build = subcommands.add_parser("mega-platformio-build")
     pio_build.add_argument("--env", default="cookbot_mega2560")
@@ -219,9 +248,20 @@ def cmd_unoq_adb_check(args: argparse.Namespace) -> int:
 
 
 def cmd_unoq_adb_deploy(args: argparse.Namespace) -> int:
+    if args.mega_transport == "bluetooth_rfcomm":
+        if not args.bluetooth_address:
+            return _fail("bluetooth_address_required", False, {}, 2)
+        if not _valid_bluetooth_address(args.bluetooth_address):
+            return _fail("bluetooth_address_invalid", False, {}, 2)
+        if not 1 <= args.bluetooth_channel <= 30:
+            return _fail("bluetooth_channel_invalid", False, {}, 2)
     if args.dry_run:
         print(f"DRY RUN: would deploy tracked CookBot files to UNO Q at {args.target}")
-        print("DRY RUN: would install dependencies, install user systemd units, and restart backend")
+        print(
+            "DRY RUN: would install dependencies, write a private environment file, "
+            "install user systemd units, and restart backend"
+        )
+        print(f"DRY RUN: Mega transport={args.mega_transport} bind={args.bind}")
         return 0
 
     check = argparse.Namespace(dry_run=False, json=False)
@@ -242,11 +282,30 @@ def cmd_unoq_adb_deploy(args: argparse.Namespace) -> int:
         _run([adb, "shell", "mkdir", "-p", args.target])
         _run([adb, "push", f"{temp}{os.sep}.", args.target])
 
+    environment = {
+        "COOKBOT_MODE": "hardware" if args.mega_transport != "fake" else "simulator",
+        "COOKBOT_MEGA_TRANSPORT": args.mega_transport,
+        "COOKBOT_CAMERA": "mock",
+        "COOKBOT_AI": "mock",
+        "COOKBOT_BIND": args.bind,
+        "COOKBOT_PORT": "8000",
+        "COOKBOT_HARDWARE_CONFIGURED": "false",
+        "COOKBOT_BLUETOOTH_ADDRESS": (args.bluetooth_address or "").upper(),
+        "COOKBOT_BLUETOOTH_CHANNEL": str(args.bluetooth_channel),
+        "COOKBOT_BLUETOOTH_TIMEOUT_S": "3",
+        "COOKBOT_API_TOKEN": os.environ.get("COOKBOT_API_TOKEN", ""),
+    }
+    encoded_environment = base64.b64encode(
+        "".join(f"{key}={value}\n" for key, value in environment.items()).encode("utf-8")
+    ).decode("ascii")
+
     remote = (
         f"cd {args.target} && "
         "python3 -m pip install --user -r requirements.txt && "
         "if command -v npm >/dev/null 2>&1; then cd web && npm install && npm run build && cd ..; fi && "
-        "mkdir -p ~/.config/systemd/user && "
+        "mkdir -p ~/.config/systemd/user ~/.config/cookbot && "
+        f"printf %s {encoded_environment} | base64 -d > ~/.config/cookbot/cookbot.env && "
+        "chmod 600 ~/.config/cookbot/cookbot.env && "
         "cp deploy/systemd/cookbot-backend.user.service ~/.config/systemd/user/cookbot-backend.service && "
         "systemctl --user daemon-reload && "
         "systemctl --user restart cookbot-backend.service"
@@ -267,6 +326,128 @@ def cmd_unoq_adb_logs(args: argparse.Namespace) -> int:
     _run([adb, "shell", "journalctl --user -u cookbot-backend.service -n 80 --no-pager || true"])
     _run([adb, "shell", "ls -l /dev/ttyACM* /dev/ttyUSB* 2>/dev/null || true"])
     return 0
+
+
+def cmd_unoq_bluetooth_check(args: argparse.Namespace) -> int:
+    if args.address and not _valid_bluetooth_address(args.address):
+        return _fail("bluetooth_address_invalid", args.json, {}, 2)
+    if args.dry_run:
+        result = {
+            "ready": bool(args.address),
+            "address": args.address or "not_selected",
+            "adapter": "dry_run",
+            "paired": False,
+        }
+        _emit(result, args.json)
+        return 0
+
+    if cmd_unoq_adb_check(argparse.Namespace(dry_run=False, json=False)) != 0:
+        return 1
+    adb = shutil.which("adb")
+    assert adb
+    capability_script = ROOT / "scripts" / "unoq_bluetooth_capabilities.sh"
+    if not capability_script.exists():
+        return _fail("bluetooth_capability_script_missing", args.json, {}, 3)
+    pushed = subprocess.run(
+        [adb, "push", str(capability_script), "/tmp/cookbot-bt-capabilities.sh"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if pushed.returncode != 0:
+        return _fail(
+            "bluetooth_capability_script_push_failed",
+            args.json,
+            {"detail": (pushed.stderr or pushed.stdout).strip()},
+            3,
+        )
+    capability_command = "chmod +x /tmp/cookbot-bt-capabilities.sh && /tmp/cookbot-bt-capabilities.sh"
+    if args.address:
+        capability_command += f" --address {args.address.upper()}"
+    capability = subprocess.run(
+        [adb, "shell", capability_command],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    capability_output = "\n".join(
+        part.strip() for part in (capability.stdout, capability.stderr) if part.strip()
+    )
+    if capability.returncode != 0:
+        return _fail(
+            "unoq_bluetooth_rfcomm_unavailable",
+            args.json,
+            {"detail": capability_output},
+            3,
+        )
+    adapter = _run_capture([adb, "shell", "bluetoothctl", "show"], check=False).strip()
+    if not adapter:
+        return _fail("unoq_bluetooth_adapter_unavailable", args.json, {}, 3)
+    info = ""
+    if args.address:
+        info = _run_capture(
+            [adb, "shell", "bluetoothctl", "info", args.address.upper()], check=False
+        ).strip()
+    result = {
+        "ready": True,
+        "address": args.address.upper() if args.address else "not_selected",
+        "adapter": adapter,
+        "capabilities": capability_output,
+        "device_info": info,
+        "paired": "Paired: yes" in info,
+        "trusted": "Trusted: yes" in info,
+    }
+    _emit(result, args.json)
+    return 0
+
+
+def cmd_unoq_bluetooth_pair(args: argparse.Namespace) -> int:
+    if not args.address:
+        return _fail("bluetooth_address_required", False, {}, 2)
+    if not _valid_bluetooth_address(args.address):
+        return _fail("bluetooth_address_invalid", False, {}, 2)
+    if not re.fullmatch(r"[0-9]{4,16}", args.pin):
+        return _fail("bluetooth_pin_invalid", False, {}, 2)
+    if args.dry_run:
+        print(f"DRY RUN: would pair and trust {args.address.upper()} on UNO Q; PIN is not printed")
+        return 0
+
+    if cmd_unoq_adb_check(argparse.Namespace(dry_run=False, json=False)) != 0:
+        return 1
+    adb = shutil.which("adb")
+    assert adb
+    remote_script = ROOT / "scripts" / "unoq_bluetooth_pair_remote.sh"
+    if not remote_script.exists():
+        return _fail("bluetooth_pair_script_missing", False, {}, 3)
+    if subprocess.run([adb, "push", str(remote_script), "/tmp/cookbot-bt-pair.sh"]).returncode != 0:
+        return _fail("bluetooth_pair_script_push_failed", False, {}, 3)
+    remote = (
+        "chmod +x /tmp/cookbot-bt-pair.sh && "
+        f"/tmp/cookbot-bt-pair.sh --address {args.address.upper()} --pin {args.pin}"
+    )
+    result = subprocess.run([adb, "shell", remote])
+    return result.returncode
+
+
+def cmd_unoq_bluetooth_probe(args: argparse.Namespace) -> int:
+    if not args.address:
+        return _fail("bluetooth_address_required", False, {}, 2)
+    if not _valid_bluetooth_address(args.address):
+        return _fail("bluetooth_address_invalid", False, {}, 2)
+    if not 1 <= args.channel <= 30:
+        return _fail("bluetooth_channel_invalid", False, {}, 2)
+    command = (
+        f"cd {args.target} && python3 scripts/bluetooth_rfcomm_probe.py "
+        f"--address {args.address.upper()} --channel {args.channel}"
+    )
+    if args.dry_run:
+        print("DRY RUN: adb shell", command)
+        return 0
+    if cmd_unoq_adb_check(argparse.Namespace(dry_run=False, json=False)) != 0:
+        return 1
+    adb = shutil.which("adb")
+    assert adb
+    return _run([adb, "shell", command])
 
 
 def cmd_mega_platformio_build(args: argparse.Namespace) -> int:
@@ -803,7 +984,16 @@ def cmd_commissioning_check(args: argparse.Namespace) -> int:
 
     if cmd_unoq_adb_check(argparse.Namespace(dry_run=False, json=False)) != 0:
         return 1
-    if not args.skip_adb_deploy and cmd_unoq_adb_deploy(argparse.Namespace(target="/home/arduino/cookbot", dry_run=False)) != 0:
+    if not args.skip_adb_deploy and cmd_unoq_adb_deploy(
+        argparse.Namespace(
+            target="/home/arduino/cookbot",
+            mega_transport="fake",
+            bluetooth_address=None,
+            bluetooth_channel=1,
+            bind="127.0.0.1",
+            dry_run=False,
+        )
+    ) != 0:
         return 2
     if cmd_mega_platformio_build(argparse.Namespace(env="cookbot_mega2560", dry_run=False, simulate_missing_platformio=False)) != 0:
         return 3
@@ -1043,6 +1233,10 @@ def _http_json(url: str) -> dict:
 def _mock_devices() -> list[str]:
     raw = os.environ.get("COOKBOT_DRY_ADB_DEVICES", "")
     return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _valid_bluetooth_address(value: str) -> bool:
+    return bool(re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", value.strip()))
 
 
 def _is_async_mega_event(line: bytes) -> bool:

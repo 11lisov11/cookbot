@@ -26,6 +26,48 @@
 #define COOKBOT_RAMPS14_MOTION_FAN_COOLDOWN_MS 120000UL
 #endif
 
+// Optional Bluetooth Classic SPP module connected to a dedicated Mega hardware
+// UART. Keep this off in normal builds. The RAMPS commissioning profile uses
+// Serial2 because Serial1 TX (18) conflicts with C_MIN and Serial3 TX (14)
+// conflicts with A_MIN.
+#ifndef COOKBOT_BLUETOOTH_UART_ENABLED
+#define COOKBOT_BLUETOOTH_UART_ENABLED 0
+#endif
+
+#ifndef COOKBOT_BLUETOOTH_UART_PORT
+#define COOKBOT_BLUETOOTH_UART_PORT 2
+#endif
+
+#ifndef COOKBOT_BLUETOOTH_BAUD
+#define COOKBOT_BLUETOOTH_BAUD 9600UL
+#endif
+
+#ifndef COOKBOT_TRANSPORT_MAX_LINE_BYTES
+#define COOKBOT_TRANSPORT_MAX_LINE_BYTES 384
+#endif
+
+#if COOKBOT_BLUETOOTH_UART_ENABLED
+#if COOKBOT_BLUETOOTH_UART_PORT == 1
+#define COOKBOT_BLUETOOTH_SERIAL Serial1
+#define COOKBOT_BLUETOOTH_RX_PIN 19
+#define COOKBOT_BLUETOOTH_TX_PIN 18
+#elif COOKBOT_BLUETOOTH_UART_PORT == 2
+#define COOKBOT_BLUETOOTH_SERIAL Serial2
+#define COOKBOT_BLUETOOTH_RX_PIN 17
+#define COOKBOT_BLUETOOTH_TX_PIN 16
+#elif COOKBOT_BLUETOOTH_UART_PORT == 3
+#define COOKBOT_BLUETOOTH_SERIAL Serial3
+#define COOKBOT_BLUETOOTH_RX_PIN 15
+#define COOKBOT_BLUETOOTH_TX_PIN 14
+#else
+#error "COOKBOT_BLUETOOTH_UART_PORT must be 1, 2, or 3"
+#endif
+
+#if COOKBOT_RAMPS14_COMMISSIONING && COOKBOT_BLUETOOTH_UART_PORT != 2
+#error "RAMPS commissioning Bluetooth must use Serial2; Serial1/3 conflict with verified limit pins"
+#endif
+#endif
+
 // Placeholder only. Do not use these as real pins.
 #ifndef COOKBOT_AXIS_COUNT
 #if COOKBOT_RAMPS14_COMMISSIONING

@@ -19,10 +19,17 @@ Confirmed from user context:
 - Public FLE42 gearbox listings indicate `010` corresponds to a likely `10:1` ratio, but this still needs exact vendor datasheet confirmation.
 - The slider motor has no external gearbox per user inspection.
 - User reported red A4988 stepstick-style stepper drivers on the RAMPS controller.
+- The supplied AXIS4UI desktop and Android programs identify the product as a
+  Red Sun Global four-axis teaching controller and confirm a four-coordinate
+  `X/Y/Z/E` G-code interface; see `docs/vendor_axis4ui_protocol.md`.
+- `E` is labelled `Slide table`; AXIS4UI defaults to `115200` baud on desktop,
+  Bluetooth Classic SPP on Android, and `F=100 mm/s` for jog/program motion.
+- AXIS4UI coordinates are Cartesian/controller coordinates, not direct
+  A/B/C motor step counts.
 
 Unconfirmed:
 
-- verified real axis count;
+- inverse kinematics mapping Cartesian `X/Y/Z` to motors `A/B/C`;
 - Mega STEP/DIR/EN pin map;
 - A4988 module Rsense marking, Vref/current limit, enable polarity, cooling margin, and microstepping;
 - servo or motor model;
@@ -33,6 +40,7 @@ Unconfirmed:
 - switch polarity;
 - ESTOP circuit or motion power cut path;
 - mechanical hard-stop geometry.
+- Bluetooth module model, UART baud, PIN, MAC address, and RFCOMM channel.
 
 Important: the vendor wiring image is useful evidence for connector labels, but it is
 not enough to unlock real motion. It does not prove Arduino Mega pin mapping, driver

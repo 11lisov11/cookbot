@@ -6,11 +6,11 @@ CookBot Robot Cook Assistant is a no-hardware MVP for an Arduino UNO Q + Arduino
 
 This repository starts safe by default: simulator mode, fake Mega, mock camera, and mock AI. It does not require real hardware, a camera, or an AI API key.
 
-Current status: v0.1 is a finished no-hardware product. It is installable, testable, documented, demo-ready, and CI-backed. It is not ready for real motor movement or real cooking.
+Current status: v0.2 is a finished no-hardware product plus a bench-safe hardware integration kit. It includes the analyzed vendor protocol, dual USB/Bluetooth Mega firmware, UNO Q RFCOMM deployment, and a restricted Home Assistant integration. It is not ready for unattended real motion or real cooking.
 
 ## Not Ready For Real Motion
 
-Real motion remains locked. Do not connect motors expecting movement from this release. The firmware has no real pin map, the hardware readiness file has no verified evidence, and the backend treats real-motion readiness as a hardware-only blocker. Heating, knives, relays, raw Mega commands, arbitrary code execution, and direct autonomous cooking are rejected.
+Real motion remains locked by the backend hardware gate. A temporary RAMPS commissioning pin map has produced bounded supervised movement, but ESTOP wiring, limit polarity, A4988 Vref/Rsense and microstepping, full travel limits, Bluetooth module settings, and collision-safe calibration are incomplete. Heating, knives, relays, raw Mega commands, arbitrary code execution, and direct autonomous cooking are rejected.
 
 ## Quick Start
 
@@ -66,6 +66,9 @@ Detailed startup docs:
 - `docs/mega_protocol.md`
 - `docs/hardware_automation.md`
 - `docs/commissioning_runbook.md`
+- `docs/bluetooth_link.md`
+- `docs/smart_home_integration.md`
+- `docs/vendor_axis4ui_protocol.md`
 - `docs/release_bundle.md`
 
 ## Fake Mega
@@ -151,9 +154,10 @@ PlatformIO/VS Code workflow:
 ```powershell
 pio run -e cookbot_mega2560
 pio run -e cookbot_mega2560_bench
+pio run -e cookbot_mega2560_ramps14_bluetooth
 ```
 
-The sketch intentionally rejects real motion until the pin map, drivers, limits, and hardware safety wiring are verified.
+The normal sketch rejects real motion. The explicit `ramps14` profiles are supervised commissioning builds only and do not bypass backend readiness requirements.
 
 Before connecting boards, run the local hardware doctor:
 
@@ -172,6 +176,25 @@ UNO Q ADB deployment starts with:
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/unoq_adb_check.ps1
 ```
+
+Bluetooth Mega deployment uses the UNO Q Linux/BlueZ side:
+
+```powershell
+python scripts/hardware_tooling.py unoq-bluetooth-pair --address AA:BB:CC:DD:EE:FF --pin 1234
+python scripts/hardware_tooling.py unoq-bluetooth-probe --address AA:BB:CC:DD:EE:FF --channel 1
+```
+
+## Smart Home Hub
+
+The production topology uses the Debian side of Arduino UNO Q as the local hub:
+
+```text
+Mega/RAMPS -> Bluetooth Classic SPP -> UNO Q/BlueZ -> CookBot -> Home Assistant -> local Wi-Fi
+```
+
+The release includes `deploy/homeassistant/cookbot_package.yaml`. A complete ADB installer and hub checks are in `C:\Умный дом`. Home Assistant can read robot state and issue ESTOP, but it cannot start motion, clear ESTOP, send raw commands, or bypass CookBot safety.
+
+No UNO Q STM32/Zephyr sketch is required for this topology; Wi-Fi, Bluetooth, Docker, and the API run on the Debian MPU. See `docs/smart_home_integration.md`.
 
 ## Current Mock/Simulator Features
 

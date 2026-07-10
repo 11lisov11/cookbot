@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Bluetooth,
   Bot,
   Camera,
   CheckCircle2,
@@ -134,6 +135,8 @@ type PublicSettings = {
   bind: string;
   port: number;
   api_auth_required: boolean;
+  bluetooth_configured: boolean;
+  bluetooth_channel: number | null;
 };
 
 type VersionResponse = {
@@ -751,11 +754,21 @@ export default function App() {
             <h2>Hardware Gate</h2>
           </div>
           <div className="diagnostic-list">
+            <div className={`diagnostic-item ${settings?.mega_transport === "bluetooth_rfcomm" && settings.bluetooth_configured ? "ok" : "warn"}`}>
+              <strong><Bluetooth size={16} /> Mega Bluetooth</strong>
+              <span>
+                {settings?.mega_transport === "bluetooth_rfcomm"
+                  ? settings.bluetooth_configured
+                    ? `RFCOMM configured, channel ${settings.bluetooth_channel}`
+                    : "RFCOMM selected; MAC address missing"
+                  : "RFCOMM not selected"}
+              </span>
+            </div>
             <div className="diagnostic-item warn">
               <strong>commissioning scripts only</strong>
-              <span>ADB deploy, PlatformIO upload, serial probe, and bench pulses run from scripts, not from the browser.</span>
+              <span>ADB deploy, Bluetooth pairing, PlatformIO upload, protocol probes, and bench pulses run from scripts, not from the browser.</span>
             </div>
-            {["mega_firmware_status", "mega_hardware_config", "mega_limit_switches", "mega_self_test", "mega_inputs"].map((name) => {
+            {["smart_home_integration", "bluetooth_config", "mega_firmware_status", "mega_hardware_config", "mega_limit_switches", "mega_self_test", "mega_inputs"].map((name) => {
               const check = diagnostic(name);
               return (
                 <div className={`diagnostic-item ${check?.ok ? "ok" : "warn"}`} key={name}>
@@ -874,6 +887,16 @@ export default function App() {
             <div className="diagnostic-item ok">
               <strong>mode</strong>
               <span>{settings?.mode || "unknown"} / {settings?.mega_transport || "unknown"}</span>
+            </div>
+            <div className={`diagnostic-item ${settings?.mega_transport !== "bluetooth_rfcomm" || settings.bluetooth_configured ? "ok" : "warn"}`}>
+              <strong>Bluetooth RFCOMM</strong>
+              <span>
+                {settings?.mega_transport === "bluetooth_rfcomm"
+                  ? settings.bluetooth_configured
+                    ? `configured / channel ${settings.bluetooth_channel}`
+                    : "address required on UNO Q"
+                  : "inactive"}
+              </span>
             </div>
             <div className="diagnostic-item ok">
               <strong>version</strong>

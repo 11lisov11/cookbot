@@ -1,5 +1,15 @@
 # Release Notes
 
+## v0.2.0 Hardware Integration Kit
+
+- Statically analyzed the supplied AXIS4UI desktop and Android controller bundle and recorded the evidenced G-code, speed range, coordinate model, output commands, framing, and Bluetooth SPP UUID without executing the unsigned vendor application.
+- Added dual-transport Mega firmware: USB Serial remains available while the same bounded JSON protocol runs over a dedicated `Serial2` Bluetooth UART.
+- Added a persistent Linux RFCOMM backend transport with reconnect, request matching, asynchronous-event filtering, bounded responses, diagnostics, and tests.
+- Added UNO Q ADB checks, Bluetooth capability/pair/probe commands, private systemd environment deployment, and protocol-only commissioning checks.
+- Added a restricted Home Assistant package plus a deployable UNO Q Debian hub kit in `C:\\Умный дом`.
+- Recorded physically observed RAMPS axis mappings and commissioning results while retaining explicit blockers for inconsistent B homing, slider calibration, hardware ESTOP, limit polarity, current/microstep settings, and the physical Bluetooth module.
+- Kept normal firmware and autonomous motion locked. The RAMPS builds remain supervised commissioning profiles, not production motion control.
+
 ## v0.1.0 No-Hardware Product
 
 - FastAPI backend with simulator, fake Mega, mock camera, mock AI, recipe engine, safety validation, diagnostics, logs, schemas, acceptance, backup, restore validation, and product readiness endpoints.

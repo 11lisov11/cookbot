@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     app_name: str = "CookBot"
     api_title: str = "CookBot API"
     mode: Literal["simulator", "hardware"] = Field(default="simulator", alias="COOKBOT_MODE")
-    mega_transport: Literal["fake", "fake_tcp", "serial"] = Field(
+    mega_transport: Literal["fake", "fake_tcp", "serial", "bluetooth_rfcomm"] = Field(
         default="fake", alias="COOKBOT_MEGA_TRANSPORT"
     )
     camera: Literal["mock", "libcamera", "disabled"] = Field(default="mock", alias="COOKBOT_CAMERA")
@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     fake_mega_port: int = Field(default=8765, alias="COOKBOT_FAKE_MEGA_PORT")
     serial_port: str = Field(default="/dev/ttyACM0", alias="COOKBOT_SERIAL_PORT")
     serial_baud: int = Field(default=115200, alias="COOKBOT_SERIAL_BAUD")
+    bluetooth_address: str | None = Field(default=None, alias="COOKBOT_BLUETOOTH_ADDRESS")
+    bluetooth_channel: int = Field(default=1, ge=1, le=30, alias="COOKBOT_BLUETOOTH_CHANNEL")
+    bluetooth_timeout_s: float = Field(
+        default=3.0, ge=0.5, le=30.0, alias="COOKBOT_BLUETOOTH_TIMEOUT_S"
+    )
     ai_base_url: str = Field(default="https://api.openai.com/v1", alias="COOKBOT_AI_BASE_URL")
     ai_api_key: str | None = Field(default=None, alias="COOKBOT_AI_API_KEY")
     ai_model: str = Field(default="gpt-4o-mini", alias="COOKBOT_AI_MODEL")

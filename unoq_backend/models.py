@@ -58,6 +58,8 @@ class PublicSettings(BaseModel):
     bind: str
     port: int
     api_auth_required: bool
+    bluetooth_configured: bool = False
+    bluetooth_channel: int | None = None
 
 
 class VersionResponse(BaseModel):
@@ -261,7 +263,10 @@ class HardwareGateReport(BaseModel):
     real_motion_locked: bool = True
     hardware_configured: bool = False
     required_mode: Literal["hardware"] = "hardware"
-    required_mega_transport: Literal["serial"] = "serial"
+    required_mega_transport: str = "serial_or_bluetooth_rfcomm"
+    allowed_mega_transports: list[str] = Field(
+        default_factory=lambda: ["serial", "bluetooth_rfcomm"]
+    )
     verified_count: int = 0
     evidence_count: int = 0
     total_count: int = 0

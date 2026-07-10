@@ -3,8 +3,12 @@ ready_for_real_motion: false
 items:
   - id: pin_map
     label: Mega pin map verified
+    verified: true
+    evidence: "config/axis_commissioning.yaml records physically observed movement on RAMPS channels B/X=54/55/38, A/Y=60/61/56, C/Z=46/48/62, and slider/E0=26/28/24; limit input polarity remains a separate unverified item."
+  - id: controller_transport
+    label: Mega to UNO Q transport verified
     verified: false
-    evidence: "docs/hardware_evidence/vendor_controller_wiring.png shows vendor wiring labels A/B/C and slider motor, but it does not identify verified Mega STEP/DIR/EN pins."
+    evidence: "USB JSON and dual Serial2 Bluetooth firmware compile. docs/hardware_evidence/connected_devices_2026-07-10.md records that no Mega upload port or UNO Q ADB device is currently verified; the physical SPP MAC, PIN, UART baud, RFCOMM channel, and logic levels remain unknown."
   - id: driver_types
     label: Motor/servo driver types identified
     verified: false
@@ -31,5 +35,5 @@ items:
     evidence: null
   - id: low_power_test
     label: Low-power motion test completed
-    verified: false
-    evidence: null
+    verified: true
+    evidence: "docs/commissioning_runbook.md records bounded short movement on A, B, C, and E0 plus repeatable A and C limit returns; this is not full travel calibration."

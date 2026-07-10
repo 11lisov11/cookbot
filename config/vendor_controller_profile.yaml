@@ -1,0 +1,59 @@
+project: CookBot
+source:
+  product: Red Sun Global Robot Arm Four Axis Teaching Controller
+  desktop_version: "1.12"
+  android_app: RA Pendant
+  android_version: "1.01"
+  evidence: docs/vendor_axis4ui_protocol.md
+transport:
+  framing: carriage_return
+  desktop_serial_baud_default: 115200
+  desktop_serial_baud_options: [9600, 19200, 38400, 57600, 74880, 115200, 230400]
+  android_bluetooth_profile: bluetooth_classic_spp_rfcomm
+  android_spp_uuid: 00001101-0000-1000-8000-00805f9b34fb
+  response_shape: vendor_text_coordinates
+motion:
+  coordinate_axes: [X, Y, Z, E]
+  axis_e_label: slide_table
+  default_coordinates:
+    X: 0
+    Y: 205
+    Z: 135
+    E: -500
+  jog_speed_mm_s:
+    minimum: 5
+    maximum: 150
+    default: 100
+  run_speed_mm_s:
+    minimum: 5
+    maximum: 150
+    default: 100
+  precise_increment: 1
+  quick_increment: 10
+  commands:
+    linear_move: "G1 X{x} Y{y} Z{z} E{e} F{speed}"
+    absolute_mode: G90
+    relative_mode: G91
+    set_position: "G92 X{x} Y{y} Z{z}"
+    vendor_calibration_reset: G2696
+outputs:
+  driver_enable_on: M6216
+  driver_enable_off: M6228
+  cooling_fan_on: M211
+  cooling_fan_off: M212
+  vacuum_on: M14
+  vacuum_off: M15
+  auxiliary_a: M11
+  auxiliary_b: M12
+  gripper_on: M26
+  gripper_off: M27
+  execution_high: M61
+  execution_low: M62
+known_presets:
+  calibration_reference: "G1 X0 Y205 Z100"
+  vertical: "G1 X0 Y140 Z-30"
+  stretch: "G1 X0 Y320 Z0"
+  contract: "G1 X0 Y155 Z-40"
+safety:
+  direct_vendor_gcode_enabled: false
+  reason: Vendor inverse kinematics, link dimensions, coordinate limits, and controller feedback grammar are not fully documented.

@@ -26,6 +26,11 @@ def test_release_plan_keeps_motion_locked():
     assert body["ready_for_real_motion"] is False
     assert body["file_count"] > 0
     assert any(item["path"] == "README.md" for item in body["files"])
+    if (ROOT / ".pio/build/cookbot_mega2560_ramps14_bluetooth/firmware.hex").exists():
+        assert any(
+            item["path"] == ".pio/build/cookbot_mega2560_ramps14_bluetooth/firmware.hex"
+            for item in body["files"]
+        )
 
 
 def test_release_bundle_build_and_validate(tmp_path: Path):

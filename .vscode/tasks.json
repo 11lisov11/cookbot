@@ -16,6 +16,13 @@
       "problemMatcher": []
     },
     {
+      "label": "CookBot: PlatformIO Mega Bluetooth build",
+      "type": "shell",
+      "command": "python -m platformio run -e cookbot_mega2560_ramps14_bluetooth",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
       "label": "CookBot: PlatformIO Mega upload",
       "type": "shell",
       "command": "powershell -ExecutionPolicy Bypass -File scripts/mega_platformio_upload.ps1 --port ${input:megaPort}",
@@ -25,6 +32,12 @@
       "label": "CookBot: PlatformIO Mega monitor",
       "type": "shell",
       "command": "python -m platformio device monitor -b 115200 -p ${input:megaPort}",
+      "problemMatcher": []
+    },
+    {
+      "label": "CookBot: PlatformIO Mega Bluetooth upload",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File scripts/mega_platformio_upload.ps1 --env cookbot_mega2560_ramps14_bluetooth --port ${input:megaPort}",
       "problemMatcher": []
     },
     {

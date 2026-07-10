@@ -24,9 +24,13 @@ python3 -m pip install -r "$INSTALL_DIR/requirements.txt"
 install -m 0644 "$INSTALL_DIR/deploy/systemd/cookbot-backend.service" "$SERVICE_DIR/cookbot-backend.service"
 install -m 0644 "$INSTALL_DIR/deploy/systemd/cookbot-fake-mega.service" "$SERVICE_DIR/cookbot-fake-mega.service"
 
+mkdir -p /etc/cookbot
+if [[ ! -f /etc/cookbot/cookbot.env ]]; then
+  install -m 0600 "$INSTALL_DIR/deploy/systemd/cookbot.env.example" /etc/cookbot/cookbot.env
+fi
+
 systemctl daemon-reload
 systemctl enable cookbot-backend.service
 
 echo "CookBot installed to $INSTALL_DIR"
 echo "Start with: systemctl start cookbot-backend.service"
-

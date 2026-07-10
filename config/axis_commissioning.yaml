@@ -1,5 +1,24 @@
 project: CookBot
 controller: Arduino Mega + RAMPS 1.4 commissioning firmware
+vendor_controller_protocol:
+  source: docs/vendor_axis4ui_protocol.md
+  logical_coordinates: [X, Y, Z, E]
+  slider_coordinate: E
+  command_framing: carriage_return
+  desktop_serial_baud: 115200
+  bluetooth_profile: classic_spp_rfcomm
+  vendor_speed_range_mm_s: [5, 150]
+  direct_vendor_gcode_enabled: false
+controller_transport:
+  usb_json_baud: 115200
+  bluetooth_uart: Serial2
+  bluetooth_rx_pin: 17
+  bluetooth_tx_pin: 16
+  bluetooth_uart_baud_default: 9600
+  bluetooth_mac: null
+  bluetooth_pin: null
+  rfcomm_channel: null
+  note: MAC, PIN, RFCOMM channel, and physical module UART baud must be measured before deployment.
 hardware_observations:
   stepper_drivers:
     user_reported_type: A4988
@@ -110,3 +129,52 @@ axes:
         accel_steps: 250
         observed_seek_steps: [1264, 1262, 1265]
         reason: Limit seek spread exceeded the current commissioning tolerance.
+  B:
+    label: Vendor B motor / RAMPS X channel
+    step_pin: 54
+    dir_pin: 55
+    enable_pin: 38
+    limit_id: B_MIN
+    limit_pin: 3
+    home_direction: 0
+    away_direction: 1
+    gearbox_ratio_likely: 10
+    observations:
+      - A bounded 4000us seek reached B_MIN in 2052 steps during initial commissioning.
+      - A later 8000us edge scan did not reach B_MIN within 12000 steps; no away move was issued.
+    status: inconsistent_limit_or_motion_path_requires_physical_inspection
+  C:
+    label: Vendor C motor / RAMPS Z channel
+    step_pin: 46
+    dir_pin: 48
+    enable_pin: 62
+    limit_id: C_MIN
+    limit_pin: 18
+    home_direction: 0
+    away_direction: 1
+    gearbox_ratio_likely: 10
+    observations:
+      - A bounded 4000us seek reached C_MIN in 3521 steps during initial commissioning.
+      - At 8000us C reached C_MIN in 5146 steps, moved away 5000 steps, and returned in 5047 steps.
+    status: bounded_motion_observed_not_calibrated
+  E0:
+    label: Slider motor / RAMPS E0 channel
+    step_pin: 26
+    dir_pin: 28
+    enable_pin: 24
+    limit_id: null
+    limit_pin: null
+    gearbox_ratio: 1
+    learned_profile:
+      pulse_us: 8
+      start_delay_us: 12000
+      min_delay_us: 12000
+      accel_steps: 0
+      decel_steps: 0
+      step_backend: digital
+      repeated_cycles: 4
+      steps_per_direction: 600
+    observations:
+      - Short flat-timing cycles moved with manual supervision.
+      - A 6250-step ramp reaching 5000us did not move reliably and produced skipped-step sounds.
+    status: short_motion_observed_no_limit_or_linear_calibration

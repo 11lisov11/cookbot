@@ -2,7 +2,8 @@
 
 Verified project facts:
 
-- UNO Q communicates with Arduino Mega over USB Serial or UART.
+- UNO Q communicates with Arduino Mega over USB Serial or Bluetooth Classic
+  SPP/RFCOMM through a UART Bluetooth module.
 - Motors/servos must use a separate power supply.
 - Arduino 5V must not power motors or servos.
 - Motor supply ground, Arduino Mega ground, and UNO Q ground must be common.
@@ -12,6 +13,24 @@ Verified project facts:
 - The vendor image labels limit switches `A`, `B`, and `C`.
 - The vendor image labels 12V input and 12V suction output terminals.
 - User reported red A4988 stepstick-style stepper driver modules on the RAMPS controller.
+- The vendor Android pendant confirms Bluetooth Classic SPP. For CookBot dual
+  USB/Bluetooth operation, use a separate Mega hardware UART rather than
+  sharing USB UART0.
+
+Preferred CookBot Bluetooth UART:
+
+- Mega `Serial2`, RX2 pin `17`, TX2 pin `16`;
+- module TXD -> Mega RX2 (`17`);
+- Mega TX2 (`16`) -> module RXD through the level shifting required by the
+  exact module;
+- common ground;
+- module VCC only at the voltage supported by its carrier board.
+
+`Serial1` is not used because Mega TX1 pin `18` is already the RAMPS `C_MIN`
+limit input in the verified commissioning map. `Serial3` is not used because
+Mega TX3 pin `14` is the RAMPS `A_MIN` input. The original vendor header in the
+photo must be traced before reuse; do not assume it is `Serial2` from wire
+colour alone.
 
 Unknown until hardware inspection:
 

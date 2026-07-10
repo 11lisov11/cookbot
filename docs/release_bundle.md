@@ -39,7 +39,7 @@ powershell -ExecutionPolicy Bypass -File scripts/validate_release.ps1 --latest -
 Or validate a specific bundle:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/validate_release.ps1 dist/release/cookbot-0.1.0-a5f0d2d.zip --json
+powershell -ExecutionPolicy Bypass -File scripts/validate_release.ps1 dist/release/cookbot-0.2.0-a5f0d2d.zip --json
 ```
 
 Validation reads `COOKBOT_RELEASE_MANIFEST.json` inside the zip and checks every file size and SHA256 digest.
@@ -50,6 +50,6 @@ Expected categories:
 
 - `source`: tracked project files.
 - `web_dist`: generated PWA production build, if `web/dist` exists.
-- `mega_firmware_build`: PlatformIO `firmware.hex` and `firmware.elf` for locked and bench Mega builds, if `.pio/build` exists.
+- `mega_firmware_build`: PlatformIO `firmware.hex` and `firmware.elf` for locked, bench, and RAMPS/Bluetooth Mega builds, if `.pio/build` exists.
 
 The bundle intentionally excludes `.git`, local logs, Python caches, `node_modules`, and generated release output.
