@@ -1,2 +1,3 @@
 $ErrorActionPreference = "Stop"
-python "$PSScriptRoot\hardware_tooling.py" unoq-bluetooth-check @args
+$tool = Join-Path $PSScriptRoot "hardware_tooling.py"
+python $tool unoq-bluetooth-check @args

@@ -1,3 +1,4 @@
 $ErrorActionPreference = "Stop"
 
-python "$PSScriptRoot\release_tooling.py" build @args
+$tool = Join-Path $PSScriptRoot "release_tooling.py"
+python $tool build @args

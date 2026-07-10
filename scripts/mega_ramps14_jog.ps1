@@ -1,2 +1,3 @@
 $ErrorActionPreference = "Stop"
-python "$PSScriptRoot\hardware_tooling.py" mega-ramps14-jog @args
+$tool = Join-Path $PSScriptRoot "hardware_tooling.py"
+python $tool mega-ramps14-jog @args

@@ -1,2 +1,3 @@
 $ErrorActionPreference = "Stop"
-python "$PSScriptRoot\hardware_tooling.py" commissioning-check @args
+$tool = Join-Path $PSScriptRoot "hardware_tooling.py"
+python $tool commissioning-check @args

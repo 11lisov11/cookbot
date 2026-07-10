@@ -1,2 +1,3 @@
 $ErrorActionPreference = "Stop"
-python "$PSScriptRoot\hardware_tooling.py" mega-platformio-upload @args
+$tool = Join-Path $PSScriptRoot "hardware_tooling.py"
+python $tool mega-platformio-upload @args

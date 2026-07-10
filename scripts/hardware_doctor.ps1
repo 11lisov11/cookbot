@@ -1,3 +1,4 @@
 $ErrorActionPreference = "Stop"
 
-python "$PSScriptRoot\hardware_tooling.py" hardware-doctor @args
+$tool = Join-Path $PSScriptRoot "hardware_tooling.py"
+python $tool hardware-doctor @args
