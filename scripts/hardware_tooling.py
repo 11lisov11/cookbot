@@ -165,6 +165,9 @@ def main() -> int:
     ramps14_edge_scan.add_argument("--chunk-steps", type=int, default=1000)
     ramps14_edge_scan.add_argument("--home-delay-us", type=int, default=8000)
     ramps14_edge_scan.add_argument("--away-delay-us", type=int, default=8000)
+    ramps14_edge_scan.add_argument("--away-start-delay-us", type=int)
+    ramps14_edge_scan.add_argument("--away-accel-steps", type=int, default=0)
+    ramps14_edge_scan.add_argument("--away-decel-steps", type=int, default=0)
     ramps14_edge_scan.add_argument("--pulse-us", type=int, default=8)
     ramps14_edge_scan.add_argument("--step-backend", choices=["direct", "digital"], default="direct")
     ramps14_edge_scan.add_argument("--dry-run", action="store_true")
@@ -731,38 +734,60 @@ def cmd_mega_ramps14_axis_sweep(args: argparse.Namespace) -> int:
         return _fail("invalid_sweep_pulse", False, {}, 2)
 
     output_args = argparse.Namespace(port=args.port, baud=args.baud, dry_run=args.dry_run)
-    for axis in axes:
-        is_slider = axis in {"SLIDER", "E0"}
-        steps = args.slider_steps if is_slider else args.steps
-        delay_us = args.slider_delay_us if is_slider else args.delay_us
-        pulse_us = args.slider_pulse_us if is_slider else args.pulse_us
-        command_base = {
-            "command": "move_axis",
-            "axis": axis,
-            "steps": steps,
-            "pulse_us": pulse_us,
-            "start_delay_us": delay_us,
-            "min_delay_us": delay_us,
-            "accel_steps": 0,
-            "decel_steps": 0,
-            "hold": 0,
-            "step_backend": "digital" if is_slider else "direct",
-        }
-        for direction in (1, 0):
-            command = {**command_base, "id": f"{axis}_sweep_{direction}", "direction": direction}
-            if not args.dry_run:
-                print(f"SWEEP axis={axis} direction={direction} steps={steps} delay_us={delay_us}", flush=True)
-            result = _send_ramps14_motion_command(output_args, command)
+    session_handle = None
+    if not args.dry_run:
+        open_result, session_handle = _open_ramps14_motion_session(output_args)
+        if open_result != 0 or session_handle is None:
+            return open_result
+        output_args._serial_handle = session_handle
+
+    try:
+        for axis in axes:
+            is_slider = axis in {"SLIDER", "E0"}
+            steps = args.slider_steps if is_slider else args.steps
+            delay_us = args.slider_delay_us if is_slider else args.delay_us
+            pulse_us = args.slider_pulse_us if is_slider else args.pulse_us
+            command_base = {
+                "command": "move_axis",
+                "axis": axis,
+                "steps": steps,
+                "pulse_us": pulse_us,
+                "start_delay_us": delay_us,
+                "min_delay_us": delay_us,
+                "accel_steps": 0,
+                "decel_steps": 0,
+                "step_backend": "digital" if is_slider else "direct",
+            }
+            for direction in (1, 0):
+                command = {
+                    **command_base,
+                    "id": f"{axis}_sweep_{direction}",
+                    "direction": direction,
+                    "hold": 1 if direction == 1 else 0,
+                }
+                if not args.dry_run:
+                    print(f"SWEEP axis={axis} direction={direction} steps={steps} delay_us={delay_us}", flush=True)
+                result = _send_ramps14_motion_command(output_args, command)
+                if result != 0:
+                    return result
+
+            disable = {"id": f"{axis}_enable", "command": "set_axis_enabled", "axis": axis, "enabled": 0}
+            result = _send_ramps14_motion_command(output_args, disable)
             if result != 0:
                 return result
-            time.sleep(0.5)
-
-    for axis in axes:
-        disable = {"id": f"{axis}_enable", "command": "set_axis_enabled", "axis": axis, "enabled": 0}
-        result = _send_ramps14_motion_command(output_args, disable)
-        if result != 0:
-            return result
-    return 0
+        return 0
+    finally:
+        if session_handle is not None:
+            for axis in axes:
+                try:
+                    _send_raw_mega_json(
+                        session_handle,
+                        {"id": f"{axis}_sweep_final_disable", "command": "set_axis_enabled", "axis": axis, "enabled": 0},
+                        timeout=5.0,
+                    )
+                except Exception:
+                    pass
+            session_handle.close()
 
 
 def cmd_mega_ramps14_edge_scan(args: argparse.Namespace) -> int:
@@ -776,6 +801,11 @@ def cmd_mega_ramps14_edge_scan(args: argparse.Namespace) -> int:
         return _fail("invalid_edge_away_steps", False, {}, 2)
     if args.home_delay_us < 250 or args.home_delay_us > 200000 or args.away_delay_us < 250 or args.away_delay_us > 200000:
         return _fail("invalid_edge_timing", False, {}, 2)
+    away_start_delay_us = args.away_start_delay_us or args.away_delay_us
+    if away_start_delay_us < args.away_delay_us or away_start_delay_us > 250000:
+        return _fail("invalid_edge_start_timing", False, {}, 2)
+    if args.away_accel_steps < 0 or args.away_accel_steps > 10000 or args.away_decel_steps < 0 or args.away_decel_steps > 10000:
+        return _fail("invalid_edge_acceleration", False, {}, 2)
     if args.pulse_us < 2 or args.pulse_us > 20:
         return _fail("invalid_edge_pulse", False, {}, 2)
 
@@ -796,6 +826,46 @@ def cmd_mega_ramps14_edge_scan(args: argparse.Namespace) -> int:
         "decel_steps": 0,
         "step_backend": args.step_backend,
     }
+    session_handle = None
+    if not args.dry_run:
+        open_result, session_handle = _open_ramps14_motion_session(transport_args)
+        if open_result != 0 or session_handle is None:
+            return open_result
+        transport_args._serial_handle = session_handle
+
+    try:
+        return _run_ramps14_edge_scan(
+            args,
+            transport_args,
+            limit,
+            home_command,
+            away_start_delay_us,
+        )
+    finally:
+        if session_handle is not None:
+            try:
+                _send_raw_mega_json(
+                    session_handle,
+                    {
+                        "id": f"{args.axis}_edge_final_disable",
+                        "command": "set_axis_enabled",
+                        "axis": args.axis,
+                        "enabled": 0,
+                    },
+                    timeout=5.0,
+                )
+            except Exception:
+                pass
+            session_handle.close()
+
+
+def _run_ramps14_edge_scan(
+    args: argparse.Namespace,
+    transport_args: argparse.Namespace,
+    limit: str,
+    home_command: dict,
+    away_start_delay_us: int,
+) -> int:
     print(f"EDGE-SCAN axis={args.axis} phase=home limit={limit} max_steps={args.home_max_steps}", flush=True)
     result, home_response = _exchange_ramps14_motion_command(transport_args, home_command)
     if result != 0:
@@ -820,11 +890,11 @@ def cmd_mega_ramps14_edge_scan(args: argparse.Namespace) -> int:
             "direction": args.away_direction,
             "steps": chunk_steps,
             "pulse_us": args.pulse_us,
-            "start_delay_us": args.away_delay_us,
+            "start_delay_us": away_start_delay_us,
             "min_delay_us": args.away_delay_us,
-            "accel_steps": 0,
-            "decel_steps": 0,
-            "hold": 0,
+            "accel_steps": args.away_accel_steps,
+            "decel_steps": args.away_decel_steps,
+            "hold": 1,
             "step_backend": args.step_backend,
         }
         print(f"EDGE-SCAN axis={args.axis} phase=away chunk={chunk_index} steps={chunk_steps} completed={completed}/{args.away_steps}", flush=True)
@@ -833,7 +903,6 @@ def cmd_mega_ramps14_edge_scan(args: argparse.Namespace) -> int:
             return result
         remaining -= chunk_steps
         chunk_index += 1
-        time.sleep(0.5)
 
     print(f"EDGE-SCAN axis={args.axis} phase=return-home limit={limit} max_steps={args.home_max_steps + args.away_steps}", flush=True)
     return_home_command = {**home_command, "id": f"{args.axis}_{limit}_edge_return", "max_steps": args.home_max_steps + args.away_steps}
@@ -928,29 +997,57 @@ def _exchange_ramps14_motion_command(args: argparse.Namespace, command: dict) ->
         print("DRY RUN:", json.dumps({"port": args.port, "baud": args.baud, "command": command}, indent=2), flush=True)
         return 0, {"ok": True, "data": {}, "error": None}
 
+    existing_handle = getattr(args, "_serial_handle", None)
+    if existing_handle is not None:
+        return _exchange_ramps14_on_open_handle(existing_handle, command)
+
+    open_result, handle = _open_ramps14_motion_session(args)
+    if open_result != 0 or handle is None:
+        return open_result, {}
+
+    with handle:
+        return _exchange_ramps14_on_open_handle(handle, command)
+
+
+def _open_ramps14_motion_session(args: argparse.Namespace):
+    """Open and verify one Mega session for a complete bounded motion sequence."""
+
     try:
         import serial  # type: ignore
     except ImportError:
-        return _fail("pyserial_not_installed", False, {}, 3), {}
+        return _fail("pyserial_not_installed", False, {}, 3), None
 
     try:
         handle = serial.Serial(args.port, args.baud, timeout=1.0)
     except Exception as exc:
-        return _fail(f"serial_open_failed:{args.port}:{exc}", False, {}, 3), {}
+        return _fail(f"serial_open_failed:{args.port}:{exc}", False, {}, 3), None
 
-    with handle:
-        time.sleep(2.0)
-        handle.reset_input_buffer()
-        status = _send_raw_mega_json(handle, {"id": "motion_status", "command": "get_firmware_status"}, timeout=5.0)
-        if not status.get("ok"):
-            return _fail(f"status_failed:{status}", False, {}, 4), status
-        firmware_status = status.get("data", {}).get("firmware_status", {})
-        if not firmware_status.get("ramps14_commissioning"):
-            return _fail("ramps14_commissioning_not_enabled", False, firmware_status, 5), status
-        response = _send_raw_mega_json(handle, command, timeout=_ramps14_command_timeout_seconds(command))
-        print(json.dumps(response, indent=2), flush=True)
-        if not response.get("ok"):
-            return _fail(f"motion_failed:{response.get('error')}", False, response, 6), response
+    time.sleep(2.0)
+    handle.reset_input_buffer()
+    status = _send_raw_mega_json(
+        handle,
+        {"id": "motion_status", "command": "get_firmware_status"},
+        timeout=5.0,
+    )
+    if not status.get("ok"):
+        handle.close()
+        return _fail(f"status_failed:{status}", False, {}, 4), None
+    firmware_status = status.get("data", {}).get("firmware_status", {})
+    if not firmware_status.get("ramps14_commissioning"):
+        handle.close()
+        return _fail("ramps14_commissioning_not_enabled", False, firmware_status, 5), None
+    return 0, handle
+
+
+def _exchange_ramps14_on_open_handle(handle, command: dict) -> tuple[int, dict]:
+    response = _send_raw_mega_json(
+        handle,
+        command,
+        timeout=_ramps14_command_timeout_seconds(command),
+    )
+    print(json.dumps(response, indent=2), flush=True)
+    if not response.get("ok"):
+        return _fail(f"motion_failed:{response.get('error')}", False, response, 6), response
     return 0, response
 
 

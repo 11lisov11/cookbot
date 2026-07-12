@@ -111,6 +111,27 @@ axes:
         decel_steps: 50
         move_elapsed_seconds: [0.475, 0.475, 0.475]
         repeated_seek_steps: [1264, 1264, 1264]
+      persistent_session_ramp_500_stable:
+        away_steps: 600
+        pulse_us: 3
+        start_delay_us: 4000
+        min_delay_us: 500
+        accel_steps: 300
+        decel_steps: 100
+        hold_between_phases: true
+        return_delay_us: 4000
+        return_seek_steps: 600
+      persistent_session_ramp_250_unstable:
+        away_steps: 600
+        pulse_us: 3
+        start_delay_us: 4000
+        min_delay_us: 250
+        accel_steps: 300
+        decel_steps: 100
+        hold_between_phases: true
+        return_delay_us: 4000
+        return_seek_steps: 416
+        reason: Commanded travel did not return to A_MIN within the expected step count.
       sharp_unstable:
         start_delay_us: 1750
         min_delay_us: 1750
@@ -142,6 +163,7 @@ axes:
     observations:
       - A bounded 4000us seek reached B_MIN in 2052 steps during initial commissioning.
       - A later 8000us edge scan did not reach B_MIN within 12000 steps; no away move was issued.
+      - A subsequent 6000-to-4000us bounded seek did not reach B_MIN within 10000 steps.
     status: inconsistent_limit_or_motion_path_requires_physical_inspection
   C:
     label: Vendor C motor / RAMPS Z channel
@@ -156,7 +178,10 @@ axes:
     observations:
       - A bounded 4000us seek reached C_MIN in 3521 steps during initial commissioning.
       - At 8000us C reached C_MIN in 5146 steps, moved away 5000 steps, and returned in 5047 steps.
-    status: bounded_motion_observed_not_calibrated
+      - Persistent-session 600-step flat moves returned in 496, 389, 440, 429, and 431 steps across 2000, 4000, 8000, 12000, and 1000us profiles.
+      - Two persistent ramped 4000-to-500us moves returned in 654 and 631 steps.
+      - The non-monotonic offset indicates switch travel, backlash, load slip, or mechanical compliance; it is not explained by STEP frequency alone.
+    status: fast_bounded_motion_observed_mechanical_repeatability_unresolved
   E0:
     label: Slider motor / RAMPS E0 channel
     step_pin: 26
@@ -177,4 +202,5 @@ axes:
     observations:
       - Short flat-timing cycles moved with manual supervision.
       - A 6250-step ramp reaching 5000us did not move reliably and produced skipped-step sounds.
+      - Persistent-session symmetric 600-step commands completed at 8000us and 5000us; no encoder or limit exists to verify physical travel.
     status: short_motion_observed_no_limit_or_linear_calibration

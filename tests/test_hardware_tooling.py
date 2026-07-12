@@ -260,6 +260,8 @@ def test_ramps14_axis_sweep_dry_run_is_bounded():
     assert '"steps": 80' in result.stdout
     assert '"step_backend": "direct"' in result.stdout
     assert '"step_backend": "digital"' in result.stdout
+    assert '"hold": 1' in result.stdout
+    assert '"hold": 0' in result.stdout
 
 
 def test_ramps14_edge_scan_dry_run_requires_bounded_motion():
@@ -273,6 +275,14 @@ def test_ramps14_edge_scan_dry_run_requires_bounded_motion():
         "1200",
         "--chunk-steps",
         "400",
+        "--away-delay-us",
+        "500",
+        "--away-start-delay-us",
+        "4000",
+        "--away-accel-steps",
+        "300",
+        "--away-decel-steps",
+        "100",
         "--dry-run",
     )
     assert result.returncode == 0
@@ -282,6 +292,11 @@ def test_ramps14_edge_scan_dry_run_requires_bounded_motion():
     assert "phase=return-home" in result.stdout
     assert '"command": "seek_limit"' in result.stdout
     assert '"command": "move_axis"' in result.stdout
+    assert '"hold": 1' in result.stdout
+    assert '"start_delay_us": 4000' in result.stdout
+    assert '"min_delay_us": 500' in result.stdout
+    assert '"accel_steps": 300' in result.stdout
+    assert '"decel_steps": 100' in result.stdout
 
     bad = run_tool(
         "mega-ramps14-edge-scan",

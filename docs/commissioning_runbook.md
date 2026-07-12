@@ -161,6 +161,14 @@ Observed on the first CookBot A-axis commissioning pass:
   - `C`: homed to `C_MIN` in `5146` steps, moved away `5000` steps, returned to `C_MIN` in `5047` seek steps.
   - `B`: failed to reach `B_MIN` in `12000` home steps, so away-edge movement was blocked by the tool. Inspect B driver, coil pairs, wiring, switch reach, and mechanics before any larger B scan.
 
+Later persistent-session commissioning removed a host-side measurement error:
+
+- `mega-ramps14-edge-scan` and `mega-ramps14-axis-sweep` now keep one serial connection open for the complete sequence. This prevents repeated Mega resets and keeps the driver energized between outbound and return phases.
+- `A`: a ramp from `4000us` to `500us` over 300 steps, with 100 deceleration steps, moved away 600 and returned to `A_MIN` in exactly 600 steps. The same shape at `250us` returned in only 416 steps and is rejected.
+- `C`: flat 600-step tests produced non-monotonic return counts between 389 and 496 steps regardless of delays from `12000us` to `1000us`. Ramped `4000us -> 500us` tests returned in 654 and 631 steps. This points to switch travel, backlash, load slip, or compliance rather than a simple speed limit.
+- `B`: another bounded seek at `6000us -> 4000us` failed to reach `B_MIN` within 10000 steps. Do not extend B travel until direction, switch input, coils, and mechanics are inspected.
+- `E0`: symmetric 600-step commands were issued at `8000us` and `5000us` in one held session. With no limit or encoder, those commands do not prove physical distance.
+
 The reference draw-bot implementation in `C:\tchmp` sends FluidNC `G0`/`G1`
 commands with a feed rate and lets the controller execute the motion. CookBot's
 RAMPS commissioning commands now follow the same shape: one bounded command is
