@@ -15,6 +15,9 @@ class MegaTransport(ABC):
     async def send(self, command: str, args: dict[str, Any] | None = None) -> MegaResponse:
         raise NotImplementedError
 
+    def close(self) -> None:
+        return None
+
 
 class LocalFakeMegaTransport(MegaTransport):
     def __init__(self, device: FakeMegaDevice):
@@ -46,25 +49,120 @@ class TcpMegaTransport(MegaTransport):
 
 
 class SerialMegaTransport(MegaTransport):
-    def __init__(self, port: str, baud: int):
+    """Persistent USB serial transport that does not reset Mega per command."""
+
+    _RETRY_SAFE_COMMANDS = frozenset(
+        {
+            "hello",
+            "ping",
+            "get_state",
+            "get_capabilities",
+            "get_hardware_config",
+            "get_limit_switches",
+            "self_test",
+            "get_firmware_status",
+            "read_inputs",
+            "get_faults",
+            "estop",
+        }
+    )
+
+    def __init__(
+        self,
+        port: str,
+        baud: int,
+        timeout_s: float = 2.0,
+        serial_factory: Callable[..., Any] | None = None,
+        reset_wait_s: float = 2.0,
+    ):
         self.port = port
         self.baud = baud
+        self.timeout_s = timeout_s
+        self._serial_factory = serial_factory
+        self._reset_wait_s = reset_wait_s
+        self._handle: Any | None = None
+        self._lock = asyncio.Lock()
 
     async def send(self, command: str, args: dict[str, Any] | None = None) -> MegaResponse:
-        try:
-            import serial  # type: ignore
-        except ImportError as exc:
-            raise RuntimeError("pyserial_not_installed") from exc
-
         request = build_request(command, args)
+        payload = encode_request(request)
+        async with self._lock:
+            return await asyncio.to_thread(
+                self._exchange_with_retry,
+                command,
+                request.id,
+                payload,
+            )
 
-        def exchange() -> MegaResponse:
-            with serial.Serial(self.port, self.baud, timeout=2.0) as handle:
-                handle.write(encode_request(request))
-                line = handle.readline()
-                return decode_response(line)
+    def close(self) -> None:
+        self._close_handle()
 
-        return await asyncio.to_thread(exchange)
+    def _exchange_with_retry(self, command: str, request_id: str, payload: bytes) -> MegaResponse:
+        last_error: Exception | None = None
+        attempts = 2 if command in self._RETRY_SAFE_COMMANDS else 1
+        for _attempt in range(attempts):
+            try:
+                handle = self._ensure_handle()
+                handle.write(payload)
+                flush = getattr(handle, "flush", None)
+                if flush is not None:
+                    flush()
+                return self._read_matching_response(handle, request_id)
+            except Exception as exc:
+                last_error = exc
+                self._close_handle()
+        assert last_error is not None
+        if isinstance(last_error, RuntimeError) and str(last_error).startswith("serial_"):
+            raise last_error
+        raise RuntimeError(f"serial_transport_error:{last_error}") from last_error
+
+    def _ensure_handle(self):
+        if self._handle is not None:
+            return self._handle
+        if self._serial_factory is None:
+            try:
+                import serial  # type: ignore
+            except ImportError as exc:
+                raise RuntimeError("serial_pyserial_not_installed") from exc
+            factory = serial.Serial
+        else:
+            factory = self._serial_factory
+
+        try:
+            handle = factory(self.port, self.baud, timeout=self.timeout_s)
+        except Exception as exc:
+            raise RuntimeError(f"serial_open_failed:{self.port}:{exc}") from exc
+        self._handle = handle
+        if self._reset_wait_s > 0:
+            time.sleep(self._reset_wait_s)
+        reset_input = getattr(handle, "reset_input_buffer", None)
+        if reset_input is not None:
+            reset_input()
+        return handle
+
+    def _read_matching_response(self, handle, request_id: str) -> MegaResponse:
+        deadline = time.monotonic() + self.timeout_s
+        while time.monotonic() < deadline:
+            line = handle.readline()
+            if not line:
+                continue
+            try:
+                response = decode_response(line)
+            except Exception:
+                # Boot/watchdog events are valid NDJSON but not MegaResponse.
+                continue
+            if response.id == request_id:
+                return response
+        raise TimeoutError("serial_response_timeout")
+
+    def _close_handle(self) -> None:
+        handle = self._handle
+        self._handle = None
+        if handle is not None:
+            try:
+                handle.close()
+            except Exception:
+                pass
 
 
 class BluetoothRfcommMegaTransport(MegaTransport):

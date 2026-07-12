@@ -10,6 +10,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "scripts" / "hardware_tooling.py"
+FIRMWARE = ROOT / "mega_firmware" / "cookbot_mega_firmware" / "cookbot_mega_firmware.ino"
 
 
 def run_tool(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -23,6 +24,14 @@ def run_tool(*args: str, env: dict[str, str] | None = None) -> subprocess.Comple
         capture_output=True,
         text=True,
     )
+
+
+def test_firmware_raw_motion_defaults_match_commissioned_safe_profiles():
+    source = FIRMWARE.read_text(encoding="utf-8")
+    assert "defaultStartDelayUs = 8000" in source
+    assert "defaultMinDelayUs = 3500" in source
+    assert "defaultStartDelayUs = 12000" in source
+    assert 'defaultSeekDelayUs = (axis == "A" || axis == "Y") ? 4000 : 8000' in source
 
 
 def test_adb_check_dry_run_reports_missing_device():
@@ -100,8 +109,10 @@ def test_ramps14_move_and_seek_dry_run_are_explicit():
         "--dry-run",
     )
     assert default_a_move.returncode == 0
-    assert '"min_delay_us": 250' in default_a_move.stdout
-    assert '"accel_steps": 0' in default_a_move.stdout
+    assert '"start_delay_us": 5000' in default_a_move.stdout
+    assert '"min_delay_us": 3500' in default_a_move.stdout
+    assert '"accel_steps": 300' in default_a_move.stdout
+    assert '"decel_steps": 100' in default_a_move.stdout
     assert '"step_backend": "direct"' in default_a_move.stdout
 
     default_b_move = run_tool(
@@ -115,8 +126,38 @@ def test_ramps14_move_and_seek_dry_run_are_explicit():
         "--dry-run",
     )
     assert default_b_move.returncode == 0
-    assert '"min_delay_us": 1000' in default_b_move.stdout
-    assert '"accel_steps": 250' in default_b_move.stdout
+    assert '"min_delay_us": 8000' in default_b_move.stdout
+    assert '"accel_steps": 0' in default_b_move.stdout
+
+    default_a_seek = run_tool(
+        "mega-ramps14-seek-limit",
+        "--port",
+        "COM5",
+        "--axis",
+        "A",
+        "--limit",
+        "A_MIN",
+        "--direction",
+        "0",
+        "--dry-run",
+    )
+    assert default_a_seek.returncode == 0
+    assert '"min_delay_us": 4000' in default_a_seek.stdout
+
+    default_c_seek = run_tool(
+        "mega-ramps14-seek-limit",
+        "--port",
+        "COM5",
+        "--axis",
+        "C",
+        "--limit",
+        "C_MIN",
+        "--direction",
+        "0",
+        "--dry-run",
+    )
+    assert default_c_seek.returncode == 0
+    assert '"min_delay_us": 8000' in default_c_seek.stdout
 
     default_slider_move = run_tool(
         "mega-ramps14-move",
@@ -251,6 +292,22 @@ def test_ramps14_axis_sweep_dry_run_is_bounded():
         "120",
         "--slider-steps",
         "80",
+        "--delay-us",
+        "500",
+        "--slider-delay-us",
+        "3000",
+        "--start-delay-us",
+        "4000",
+        "--accel-steps",
+        "60",
+        "--decel-steps",
+        "60",
+        "--slider-start-delay-us",
+        "12000",
+        "--slider-accel-steps",
+        "40",
+        "--slider-decel-steps",
+        "40",
         "--dry-run",
     )
     assert result.returncode == 0
@@ -262,6 +319,38 @@ def test_ramps14_axis_sweep_dry_run_is_bounded():
     assert '"step_backend": "digital"' in result.stdout
     assert '"hold": 1' in result.stdout
     assert '"hold": 0' in result.stdout
+    assert '"start_delay_us": 4000' in result.stdout
+    assert '"accel_steps": 60' in result.stdout
+    assert '"start_delay_us": 12000' in result.stdout
+    assert '"accel_steps": 40' in result.stdout
+
+
+def test_ramps14_axis_sweep_rejects_invalid_ramp():
+    result = run_tool(
+        "mega-ramps14-axis-sweep",
+        "--port",
+        "COM5",
+        "--steps",
+        "100",
+        "--accel-steps",
+        "60",
+        "--decel-steps",
+        "60",
+        "--dry-run",
+    )
+    assert result.returncode == 2
+    assert "invalid_sweep_ramp_steps" in result.stdout
+
+    bad_fan_observe = run_tool(
+        "mega-ramps14-axis-sweep",
+        "--port",
+        "COM5",
+        "--fan-observe-seconds",
+        "301",
+        "--dry-run",
+    )
+    assert bad_fan_observe.returncode == 2
+    assert "invalid_fan_observe_seconds" in bad_fan_observe.stdout
 
 
 def test_ramps14_edge_scan_dry_run_requires_bounded_motion():
@@ -288,10 +377,12 @@ def test_ramps14_edge_scan_dry_run_requires_bounded_motion():
     assert result.returncode == 0
     assert "phase=home" in result.stdout
     assert "phase=away" in result.stdout
+    assert "phase=verify-away" in result.stdout
     assert "completed=1200/1200" in result.stdout
     assert "phase=return-home" in result.stdout
     assert '"command": "seek_limit"' in result.stdout
     assert '"command": "move_axis"' in result.stdout
+    assert '"command": "read_inputs"' in result.stdout
     assert '"hold": 1' in result.stdout
     assert '"start_delay_us": 4000' in result.stdout
     assert '"min_delay_us": 500' in result.stdout

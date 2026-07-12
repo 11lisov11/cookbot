@@ -149,8 +149,15 @@ def main() -> int:
     ramps14_sweep.add_argument("--slider-steps", type=int, default=300)
     ramps14_sweep.add_argument("--delay-us", type=int, default=8000)
     ramps14_sweep.add_argument("--slider-delay-us", type=int, default=30000)
+    ramps14_sweep.add_argument("--start-delay-us", type=int)
+    ramps14_sweep.add_argument("--slider-start-delay-us", type=int)
+    ramps14_sweep.add_argument("--accel-steps", type=int, default=0)
+    ramps14_sweep.add_argument("--decel-steps", type=int, default=0)
+    ramps14_sweep.add_argument("--slider-accel-steps", type=int, default=0)
+    ramps14_sweep.add_argument("--slider-decel-steps", type=int, default=0)
     ramps14_sweep.add_argument("--pulse-us", type=int, default=8)
     ramps14_sweep.add_argument("--slider-pulse-us", type=int, default=12)
+    ramps14_sweep.add_argument("--fan-observe-seconds", type=int, default=0)
     ramps14_sweep.add_argument("--dry-run", action="store_true")
     ramps14_sweep.set_defaults(fn=cmd_mega_ramps14_axis_sweep)
 
@@ -730,8 +737,28 @@ def cmd_mega_ramps14_axis_sweep(args: argparse.Namespace) -> int:
         return _fail("invalid_sweep_steps", False, {}, 2)
     if args.delay_us < 250 or args.delay_us > 200000 or args.slider_delay_us < 250 or args.slider_delay_us > 200000:
         return _fail("invalid_sweep_timing", False, {}, 2)
+    start_delay_us = args.start_delay_us or args.delay_us
+    slider_start_delay_us = args.slider_start_delay_us or args.slider_delay_us
+    if (
+        start_delay_us < args.delay_us
+        or start_delay_us > 250000
+        or slider_start_delay_us < args.slider_delay_us
+        or slider_start_delay_us > 250000
+    ):
+        return _fail("invalid_sweep_start_timing", False, {}, 2)
+    if (
+        args.accel_steps < 0
+        or args.decel_steps < 0
+        or args.slider_accel_steps < 0
+        or args.slider_decel_steps < 0
+        or args.accel_steps + args.decel_steps > args.steps
+        or args.slider_accel_steps + args.slider_decel_steps > args.slider_steps
+    ):
+        return _fail("invalid_sweep_ramp_steps", False, {}, 2)
     if args.pulse_us < 2 or args.pulse_us > 20 or args.slider_pulse_us < 2 or args.slider_pulse_us > 20:
         return _fail("invalid_sweep_pulse", False, {}, 2)
+    if args.fan_observe_seconds < 0 or args.fan_observe_seconds > 300:
+        return _fail("invalid_fan_observe_seconds", False, {}, 2)
 
     output_args = argparse.Namespace(port=args.port, baud=args.baud, dry_run=args.dry_run)
     session_handle = None
@@ -746,16 +773,19 @@ def cmd_mega_ramps14_axis_sweep(args: argparse.Namespace) -> int:
             is_slider = axis in {"SLIDER", "E0"}
             steps = args.slider_steps if is_slider else args.steps
             delay_us = args.slider_delay_us if is_slider else args.delay_us
+            axis_start_delay_us = slider_start_delay_us if is_slider else start_delay_us
+            accel_steps = args.slider_accel_steps if is_slider else args.accel_steps
+            decel_steps = args.slider_decel_steps if is_slider else args.decel_steps
             pulse_us = args.slider_pulse_us if is_slider else args.pulse_us
             command_base = {
                 "command": "move_axis",
                 "axis": axis,
                 "steps": steps,
                 "pulse_us": pulse_us,
-                "start_delay_us": delay_us,
+                "start_delay_us": axis_start_delay_us,
                 "min_delay_us": delay_us,
-                "accel_steps": 0,
-                "decel_steps": 0,
+                "accel_steps": accel_steps,
+                "decel_steps": decel_steps,
                 "step_backend": "digital" if is_slider else "direct",
             }
             for direction in (1, 0):
@@ -775,7 +805,10 @@ def cmd_mega_ramps14_axis_sweep(args: argparse.Namespace) -> int:
             result = _send_ramps14_motion_command(output_args, disable)
             if result != 0:
                 return result
-        return 0
+            fan_result = _verify_motion_fan_active(output_args, f"{axis}_sweep_fan_status")
+            if fan_result != 0:
+                return fan_result
+        return _observe_motion_fan_cooldown(output_args, args.fan_observe_seconds)
     finally:
         if session_handle is not None:
             for axis in axes:
@@ -904,6 +937,24 @@ def _run_ramps14_edge_scan(
         remaining -= chunk_steps
         chunk_index += 1
 
+    print(f"EDGE-SCAN axis={args.axis} phase=verify-away limit={limit}", flush=True)
+    input_result, input_response = _exchange_ramps14_motion_command(
+        transport_args,
+        {"id": f"{args.axis}_{limit}_edge_away_inputs", "command": "read_inputs"},
+    )
+    if input_result != 0:
+        return input_result
+    if not args.dry_run:
+        limit_active = _extract_limit_active(input_response, limit)
+        if limit_active is None:
+            return _fail("edge_away_limit_state_missing", False, input_response, 8)
+        if limit_active:
+            _send_ramps14_motion_command(
+                transport_args,
+                {"id": f"{args.axis}_enable", "command": "set_axis_enabled", "axis": args.axis, "enabled": 0},
+            )
+            return _fail("edge_away_limit_not_released", False, input_response, 8)
+
     print(f"EDGE-SCAN axis={args.axis} phase=return-home limit={limit} max_steps={args.home_max_steps + args.away_steps}", flush=True)
     return_home_command = {**home_command, "id": f"{args.axis}_{limit}_edge_return", "max_steps": args.home_max_steps + args.away_steps}
     result, return_response = _exchange_ramps14_motion_command(transport_args, return_home_command)
@@ -917,28 +968,94 @@ def _run_ramps14_edge_scan(
     if disable_result != 0:
         return disable_result
     if not args.dry_run and not return_response.get("data", {}).get("limit_hit"):
-        return _fail("edge_return_limit_not_hit", False, return_response, 8)
+        return _fail("edge_return_limit_not_hit", False, return_response, 9)
+    return _verify_motion_fan_active(transport_args, f"{args.axis}_edge_fan_status")
+
+
+def _extract_limit_active(response: dict, limit: str) -> bool | None:
+    switches = response.get("data", {}).get("inputs", {}).get("limit_switches", [])
+    for switch in switches:
+        if switch.get("id") == limit:
+            return bool(switch.get("active"))
+    return None
+
+
+def _verify_motion_fan_active(transport_args: argparse.Namespace, request_id: str) -> int:
+    if transport_args.dry_run:
+        return 0
+    status_result, status_response = _exchange_ramps14_motion_command(
+        transport_args,
+        {"id": request_id, "command": "get_firmware_status"},
+    )
+    if status_result != 0:
+        return status_result
+    firmware_status = status_response.get("data", {}).get("firmware_status", {})
+    if not firmware_status.get("motion_fan_auto_active"):
+        return _fail("motion_fan_not_active_after_motion", False, firmware_status, 10)
+    return 0
+
+
+def _observe_motion_fan_cooldown(transport_args: argparse.Namespace, observe_seconds: int) -> int:
+    if transport_args.dry_run or observe_seconds == 0:
+        return 0
+    handle = getattr(transport_args, "_serial_handle", None)
+    if handle is None:
+        return _fail("fan_observe_requires_open_serial_session", False, {}, 10)
+
+    started_at = time.monotonic()
+    initial_remaining_ms = 0
+    final_status: dict = {}
+    sample_index = 0
+    while True:
+        response = _send_raw_mega_json(
+            handle,
+            {"id": f"fan_cooldown_{sample_index}", "command": "get_firmware_status"},
+            timeout=5.0,
+        )
+        if not response.get("ok"):
+            return _fail("fan_cooldown_status_failed", False, response, 10)
+        final_status = response.get("data", {}).get("firmware_status", {})
+        remaining_ms = int(final_status.get("motion_fan_remaining_ms") or 0)
+        if sample_index == 0:
+            initial_remaining_ms = remaining_ms
+        elapsed_seconds = time.monotonic() - started_at
+        print(
+            "FAN-COOLDOWN "
+            f"elapsed_s={elapsed_seconds:.1f} "
+            f"active={str(bool(final_status.get('motion_fan_auto_active'))).lower()} "
+            f"remaining_ms={remaining_ms}",
+            flush=True,
+        )
+        if elapsed_seconds >= observe_seconds:
+            break
+        time.sleep(min(10.0, observe_seconds - elapsed_seconds))
+        sample_index += 1
+
+    expected_stopped = observe_seconds * 1000 >= initial_remaining_ms + 2000
+    if expected_stopped and final_status.get("motion_fan_auto_active"):
+        return _fail("motion_fan_cooldown_did_not_stop", False, final_status, 10)
     return 0
 
 
 def _resolve_ramps14_timing(args: argparse.Namespace, purpose: str) -> dict[str, int]:
     if purpose == "seek":
+        seek_delay_us = 4000 if args.axis == "A" else 8000
         defaults = {
             "pulse_us": 4,
-            "start_delay_us": 1850,
-            "min_delay_us": 1850,
+            "start_delay_us": seek_delay_us,
+            "min_delay_us": seek_delay_us,
             "accel_steps": 0,
             "decel_steps": 0,
         }
     elif args.axis == "A":
-        # Learned on the connected CookBot A axis on COM6. Other axes keep
-        # conservative defaults until their limits and loads are commissioned.
+        # Three current-session 600-step cycles returned exactly to A_MIN at
+        # this profile. A 3000 us minimum already skipped steps.
         defaults = {
             "pulse_us": 3,
-            "start_delay_us": 1850,
-            "min_delay_us": 250,
-            "accel_steps": 0,
-            "decel_steps": 0,
+            "start_delay_us": 5000,
+            "min_delay_us": 3500,
+            "accel_steps": 300,
+            "decel_steps": 100,
         }
     elif args.axis in {"SLIDER", "E0"}:
         # Learned on the connected CookBot slider on COM6. The E0 worm-drive
@@ -953,12 +1070,14 @@ def _resolve_ramps14_timing(args: argparse.Namespace, purpose: str) -> dict[str,
             "decel_steps": 0,
         }
     else:
+        # B and C do not have repeatable limit behavior yet. Keep their
+        # implicit profile slow and flat until the wiring and mechanics pass.
         defaults = {
             "pulse_us": 4,
-            "start_delay_us": 1850,
-            "min_delay_us": 1000,
-            "accel_steps": 250,
-            "decel_steps": 250,
+            "start_delay_us": 8000,
+            "min_delay_us": 8000,
+            "accel_steps": 0,
+            "decel_steps": 0,
         }
 
     return {

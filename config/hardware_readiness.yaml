@@ -8,7 +8,7 @@ items:
   - id: controller_transport
     label: Mega to UNO Q transport verified
     verified: false
-    evidence: "USB JSON and dual Serial2 Bluetooth firmware compile. docs/hardware_evidence/connected_devices_2026-07-10.md records that no Mega upload port or UNO Q ADB device is currently verified; the physical SPP MAC, PIN, UART baud, RFCOMM channel, and logic levels remain unknown."
+    evidence: "USB JSON is verified against the connected Mega on COM6. Dual Serial2 Bluetooth firmware compiles, but the UNO Q ADB device and end-to-end SPP link are not connected; MAC, PIN, UART baud, RFCOMM channel, and logic levels remain unknown."
   - id: driver_types
     label: Motor/servo driver types identified
     verified: false
@@ -36,4 +36,4 @@ items:
   - id: low_power_test
     label: Low-power motion test completed
     verified: true
-    evidence: "docs/commissioning_runbook.md records bounded short movement on A, B, C, and E0 plus repeatable A and C limit returns; this is not full travel calibration."
+    evidence: "docs/hardware_evidence/commissioning_2026-07-12.md records bounded commands on A, B, C, and E0. Only A currently has three repeatable 600-step limit returns; B homing is unresolved, C loses effective travel, and E0 has no position feedback."

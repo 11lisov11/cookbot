@@ -164,10 +164,22 @@ Observed on the first CookBot A-axis commissioning pass:
 Later persistent-session commissioning removed a host-side measurement error:
 
 - `mega-ramps14-edge-scan` and `mega-ramps14-axis-sweep` now keep one serial connection open for the complete sequence. This prevents repeated Mega resets and keeps the driver energized between outbound and return phases.
-- `A`: a ramp from `4000us` to `500us` over 300 steps, with 100 deceleration steps, moved away 600 and returned to `A_MIN` in exactly 600 steps. The same shape at `250us` returned in only 416 steps and is rejected.
+- `A`: an initial ramp from `4000us` to `500us` returned exactly 600 steps once, but a later repeat returned only 417 steps. The profile is rejected; a single matching return is not enough to commission a speed.
 - `C`: flat 600-step tests produced non-monotonic return counts between 389 and 496 steps regardless of delays from `12000us` to `1000us`. Ramped `4000us -> 500us` tests returned in 654 and 631 steps. This points to switch travel, backlash, load slip, or compliance rather than a simple speed limit.
 - `B`: another bounded seek at `6000us -> 4000us` failed to reach `B_MIN` within 10000 steps. Do not extend B travel until direction, switch input, coils, and mechanics are inspected.
 - `E0`: symmetric 600-step commands were issued at `8000us` and `5000us` in one held session. With no limit or encoder, those commands do not prove physical distance.
+
+The 2026-07-12 supervised retest supersedes the older speed defaults above:
+
+- `mega-ramps14-edge-scan` now verifies that the target MIN input actually releases after the away phase. If it remains active, the driver is disabled and the test fails with `edge_away_limit_not_released` instead of reporting a false return.
+- `A`: flat `4000us` returned `600`, `599`, and `600` steps. A `5000us -> 3500us` ramp returned `600`, `600`, and `600` steps and is the current bounded-test profile. `3000us` returned only `462`, and a repeated `500us` profile returned only `417`; both are rejected.
+- `B`: `B_MIN` remained inactive. Direction 1 did not find it within a bounded 500-step seek, after which 500 direction-0 steps were issued to return the commanded displacement. Neither homing direction nor physical travel is accepted.
+- `C`: identical 600-step commands produced return counts of `844`, `563`, `577`, `356`, `540`, and `453`. At `12000us`, one 600-step away command did not release `C_MIN` at all. C is blocked for positioning until the switch, coupler, gearbox, coil pairing, driver current, and mechanical load are inspected.
+- `E0`: symmetric 600-step commands completed at flat `5000us` and `3000us`, plus a `10000us -> 2000us` ramp. These are command-delivery results only because E0 has no limit or encoder.
+- `D9`: with one persistent COM6 session, the fan remained active at 120.6 seconds and reported inactive with zero remaining time at 125.0 seconds. Closing a CH340 serial session may reset Mega, so cooldown tests must keep the port open.
+- Firmware v0.2 `cookbot_mega2560_ramps14_bluetooth` was flashed and verified on COM6. It passed protocol/self-test and a post-flash A cycle that returned 299 steps after a 300-step away move.
+- Firmware raw motion defaults were then changed to the accepted profiles. A raw A move with omitted timing fields selected `5000us -> 3500us` and returned exactly 300 steps; raw A seek selected `4000us`. Raw B/C defaults remain flat at `8000us`, and raw E0 defaults remain flat at `12000us`.
+- The backend USB serial transport now keeps one COM handle for its lifetime. A hardware-mode backend passed every Mega diagnostic against v0.2 and closed COM cleanly on shutdown.
 
 The reference draw-bot implementation in `C:\tchmp` sends FluidNC `G0`/`G1`
 commands with a feed rate and lets the controller execute the motion. CookBot's
@@ -199,15 +211,18 @@ Current user-inspected gearbox notes:
 - `C` motor: `P/N FLE 42-010`, `S/N H202600230`; likely `10:1`.
 - `E0` slider: no external gearbox; use `gear_ratio=1` for motor-shaft RPM, then convert to linear travel from the measured screw or belt pitch.
 
-With `1/16` microstepping and an inferred `10:1` gearbox, the A rapid profile
-(`pulse_us=3`, `min_delay_us=250`) is about `7.4` output RPM. The `4000us` limit
-seek profile is about `0.47` output RPM. That is expected: homing is intentionally
-slow and torque-friendly.
+With `1/16` microstepping and an inferred `10:1` gearbox, the currently accepted
+A minimum delay of `3500us` is only about `0.54` output RPM. The same STEP rate
+would be about `1.07` RPM at `1/8`, `2.14` RPM at `1/4`, and `8.56` RPM at full
+step. The installed RAMPS jumper state is still unknown, so these are calculated
+scenarios rather than calibration data. Change microstep jumpers only with power
+removed, then repeat homing, travel, speed, and current-limit calibration.
 
-For a short all-axis supervised check:
+Do not run the former combined all-axis sweep while B and C remain unresolved.
+The current accepted A-only bounded check is:
 
 ```powershell
-python scripts\hardware_tooling.py mega-ramps14-axis-sweep --port COM6 --axes A,B,C,E0 --steps 300 --slider-steps 300
+python scripts\hardware_tooling.py mega-ramps14-edge-scan --port COM6 --axis A --home-delay-us 4000 --away-steps 600 --chunk-steps 600 --away-start-delay-us 5000 --away-delay-us 3500 --away-accel-steps 300 --away-decel-steps 100 --pulse-us 3
 ```
 
 For a bounded "edge-to-edge" style check without a second/max limit switch, use
@@ -259,6 +274,12 @@ post-motion cooldown (`COOKBOT_RAMPS14_MOTION_FAN_COOLDOWN_MS`, default
 `120000` ms) after the last step. Manual `set_output D9` is still available for
 diagnostics and latches until changed; use `mega-ramps14-output --output D9 --pwm 0`
 to release a manual override.
+To verify the complete cooldown without closing and resetting the serial device:
+
+```powershell
+python scripts\hardware_tooling.py mega-ramps14-axis-sweep --port COM6 --axes E0 --slider-steps 100 --slider-delay-us 5000 --fan-observe-seconds 125
+```
+
 `D8` and `D10` remain available for supervised commissioning, but must not be
 treated as heaters or autonomous cooking outputs.
 

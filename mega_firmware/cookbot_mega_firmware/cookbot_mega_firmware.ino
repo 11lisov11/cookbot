@@ -475,11 +475,27 @@ void handleRamps14MoveAxis(const String &id, const String &line) {
   String axis = extractJsonString(line, "axis");
   long steps = extractJsonInt(line, "steps", 0);
   long direction = extractJsonInt(line, "direction", 1);
-  long pulseUs = extractJsonInt(line, "pulse_us", 4);
-  long startDelayUs = extractJsonInt(line, "start_delay_us", 1850);
-  long minDelayUs = extractJsonInt(line, "min_delay_us", 1000);
-  long accelSteps = extractJsonInt(line, "accel_steps", 250);
-  long decelSteps = extractJsonInt(line, "decel_steps", accelSteps);
+  long defaultPulseUs = 4;
+  long defaultStartDelayUs = 8000;
+  long defaultMinDelayUs = 8000;
+  long defaultAccelSteps = 0;
+  long defaultDecelSteps = 0;
+  if (axis == "A" || axis == "Y") {
+    defaultPulseUs = 3;
+    defaultStartDelayUs = 5000;
+    defaultMinDelayUs = 3500;
+    defaultAccelSteps = 300;
+    defaultDecelSteps = 100;
+  } else if (axis == "SLIDER" || axis == "E0") {
+    defaultPulseUs = 8;
+    defaultStartDelayUs = 12000;
+    defaultMinDelayUs = 12000;
+  }
+  long pulseUs = extractJsonInt(line, "pulse_us", defaultPulseUs);
+  long startDelayUs = extractJsonInt(line, "start_delay_us", defaultStartDelayUs);
+  long minDelayUs = extractJsonInt(line, "min_delay_us", defaultMinDelayUs);
+  long accelSteps = extractJsonInt(line, "accel_steps", defaultAccelSteps);
+  long decelSteps = extractJsonInt(line, "decel_steps", defaultDecelSteps);
   long hold = extractJsonInt(line, "hold", 0);
   String stepBackend = extractJsonString(line, "step_backend");
   if (stepBackend.length() == 0) {
@@ -533,9 +549,10 @@ void handleRamps14SeekLimit(const String &id, const String &line) {
   String limitId = extractJsonString(line, "limit");
   long maxSteps = extractJsonInt(line, "max_steps", 0);
   long direction = extractJsonInt(line, "direction", 0);
+  long defaultSeekDelayUs = (axis == "A" || axis == "Y") ? 4000 : 8000;
   long pulseUs = extractJsonInt(line, "pulse_us", 4);
-  long startDelayUs = extractJsonInt(line, "start_delay_us", 1850);
-  long minDelayUs = extractJsonInt(line, "min_delay_us", 1850);
+  long startDelayUs = extractJsonInt(line, "start_delay_us", defaultSeekDelayUs);
+  long minDelayUs = extractJsonInt(line, "min_delay_us", defaultSeekDelayUs);
   long accelSteps = extractJsonInt(line, "accel_steps", 0);
   long decelSteps = extractJsonInt(line, "decel_steps", 0);
   String stepBackend = extractJsonString(line, "step_backend");

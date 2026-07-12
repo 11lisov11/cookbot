@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import subprocess
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -994,7 +995,15 @@ class CookBotController:
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or get_settings()
     controller = CookBotController(resolved_settings)
-    app = FastAPI(title=resolved_settings.api_title)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        try:
+            yield
+        finally:
+            await asyncio.to_thread(controller.transport.close)
+
+    app = FastAPI(title=resolved_settings.api_title, lifespan=lifespan)
     app.state.controller = controller
 
     @app.middleware("http")

@@ -11,6 +11,12 @@ export COOKBOT_SERIAL_BAUD=115200
 python3 -m uvicorn unoq_backend.app:app --host 127.0.0.1 --port 8000
 ```
 
+`SerialMegaTransport` keeps this device open for the backend lifetime. This is
+required to avoid CH340-triggered Mega resets between commands, preserve held
+motion sequences, and allow the D9 post-motion cooldown to complete. Backend
+shutdown closes the port cleanly. Do not wrap each API request in a separate
+backend process.
+
 Firmware compile:
 
 ```bash

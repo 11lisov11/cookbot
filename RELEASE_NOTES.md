@@ -5,9 +5,12 @@
 - Statically analyzed the supplied AXIS4UI desktop and Android controller bundle and recorded the evidenced G-code, speed range, coordinate model, output commands, framing, and Bluetooth SPP UUID without executing the unsigned vendor application.
 - Added dual-transport Mega firmware: USB Serial remains available while the same bounded JSON protocol runs over a dedicated `Serial2` Bluetooth UART.
 - Added a persistent Linux RFCOMM backend transport with reconnect, request matching, asynchronous-event filtering, bounded responses, diagnostics, and tests.
+- Made the USB serial backend transport persistent as well, preventing Mega resets between API commands and closing the port cleanly at application shutdown.
 - Added UNO Q ADB checks, Bluetooth capability/pair/probe commands, private systemd environment deployment, and protocol-only commissioning checks.
 - Added a restricted Home Assistant package plus a deployable UNO Q Debian hub kit in `C:\\Умный дом`.
 - Recorded physically observed RAMPS axis mappings and commissioning results while retaining explicit blockers for inconsistent B homing, slider calibration, hardware ESTOP, limit polarity, current/microstep settings, and the physical Bluetooth module.
+- Added ramped symmetric sweep controls, mandatory MIN-switch release verification, and a full D9 cooldown observer; the connected fan passed the 120-second cooldown test.
+- Flashed and verified firmware v0.2 on the connected Mega at COM6. A passed bounded repeatability testing; B and C remain explicitly blocked by current hardware results.
 - Kept normal firmware and autonomous motion locked. The RAMPS builds remain supervised commissioning profiles, not production motion control.
 
 ## v0.1.0 No-Hardware Product
