@@ -6,7 +6,7 @@ CookBot Robot Cook Assistant is a no-hardware MVP for an Arduino UNO Q + Arduino
 
 This repository starts safe by default: simulator mode, fake Mega, mock camera, and mock AI. It does not require real hardware, a camera, or an AI API key.
 
-Current status: v0.2 is a finished no-hardware product plus a bench-safe hardware integration kit. It includes the analyzed vendor protocol, dual USB/Bluetooth Mega firmware, UNO Q RFCOMM deployment, and a restricted Home Assistant integration. It is not ready for unattended real motion or real cooking.
+Current status: v0.3 is a finished no-hardware product plus a bench-safe hardware integration kit. It includes a bytecode/APK-derived vendor G-code specification, a hardware-free AXIS4UI emulator, coordinate-motion calculators, dual USB/Bluetooth Mega firmware, UNO Q RFCOMM deployment, and a restricted Home Assistant integration. It is not ready for unattended real motion or real cooking.
 
 ## Not Ready For Real Motion
 
@@ -69,6 +69,8 @@ Detailed startup docs:
 - `docs/bluetooth_link.md`
 - `docs/smart_home_integration.md`
 - `docs/vendor_axis4ui_protocol.md`
+- `docs/vendor_axis4ui_reverse_engineering.md`
+- `docs/coordinate_motion_calibration.md`
 - `docs/release_bundle.md`
 
 ## Fake Mega
@@ -101,6 +103,10 @@ The simulator exposes `joint_1`, `joint_2`, `joint_3`, and `gripper` as safe pla
 - `GET /health`
 - `GET /settings`
 - `GET /version`
+- `GET /vendor/profile`
+- `POST /vendor/gcode/validate`
+- `POST /motion/estimate`
+- `POST /motion/calibrate`
 - `GET /diagnostics`
 - `GET /state`
 - `GET /camera/snapshot`
@@ -158,6 +164,19 @@ pio run -e cookbot_mega2560_ramps14_bluetooth
 ```
 
 The normal sketch rejects real motion. The explicit `ramps14` profiles are supervised commissioning builds only and do not bypass backend readiness requirements.
+
+Run the recovered AXIS4UI grammar without opening a serial port:
+
+```powershell
+python scripts/vendor_axis4ui_emulator.py --once "G1 X0 Y205 Z100 F100" --json
+python scripts/vendor_axis4ui_emulator.py --tcp --port 8768
+```
+
+Estimate raw step rate and geared shaft RPM:
+
+```powershell
+python scripts/hardware_tooling.py mega-motion-calc --delay-us 3500 --pulse-us 3 --microstep 16 --gear-ratio 10
+```
 
 Before connecting boards, run the local hardware doctor:
 

@@ -29,6 +29,8 @@ from .models import (
     CommissioningCommand,
     CommissioningGuideResponse,
     CommandLogEntry,
+    CoordinateCalibrationRequest,
+    CoordinateCalibrationResponse,
     DiagnosticCheck,
     DiagnosticsResponse,
     ExportBundle,
@@ -48,13 +50,19 @@ from .models import (
     RecipeRuntimeStatus,
     RecipeSummary,
     RestoreValidationResponse,
+    StepperMotionEstimateRequest,
+    StepperMotionEstimateResponse,
     SystemState,
+    VendorGCodeRequest,
+    VendorGCodeValidationResponse,
+    VendorProfileResponse,
     VersionResponse,
     WorkspaceModel,
 )
 from . import __version__
 from .calibration import CalibrationStore, CalibrationWizard
 from .hardware_readiness import HardwareReadinessStore
+from .motion_math import calibrate_steps_per_unit, estimate_stepper_motion
 from .recipe_runtime import RecipeRuntime
 from .recipes import RecipeEngine
 from .safety import SafetyValidator
@@ -67,6 +75,7 @@ from .transports import (
     TcpMegaTransport,
 )
 from .workspace import WorkspaceStore
+from .vendor_gcode import validate_vendor_gcode, vendor_profile
 
 
 REQUIRED_PRODUCT_DOCS = [
@@ -81,6 +90,8 @@ REQUIRED_PRODUCT_DOCS = [
     Path("docs/bluetooth_link.md"),
     Path("docs/smart_home_integration.md"),
     Path("docs/vendor_axis4ui_protocol.md"),
+    Path("docs/vendor_axis4ui_reverse_engineering.md"),
+    Path("docs/coordinate_motion_calibration.md"),
     Path("docs/release_bundle.md"),
     Path("docs/safety.md"),
     Path("docs/no_hardware_testing.md"),
@@ -101,6 +112,13 @@ ERROR_TAXONOMY = {
     "ai_error": ["forbidden_ai_step", "invalid_move_joint_payload", "invalid_gripper_payload"],
     "recipe_error": ["unknown_recipe", "recipe_locked", "forbidden_recipe_step"],
     "config_error": ["config_error", "workspace_not_verified", "calibration_required"],
+    "gcode_error": [
+        "invalid_command_syntax",
+        "unsupported_g_code",
+        "unsupported_m_code",
+        "feed_out_of_vendor_range",
+        "direct_vendor_gcode_disabled",
+    ],
 }
 
 MEGA_PROTOCOL_COMMANDS = [
@@ -112,6 +130,7 @@ MEGA_PROTOCOL_COMMANDS = [
     "get_limit_switches",
     "self_test",
     "get_firmware_status",
+    "get_motion_profile",
     "read_inputs",
     "bench_unlock",
     "bench_test_output",
@@ -195,6 +214,24 @@ class CookBotController:
             hardware_configured=self.settings.hardware_configured,
         )
 
+    def vendor_profile(self) -> VendorProfileResponse:
+        return vendor_profile()
+
+    def validate_vendor_gcode(
+        self, request: VendorGCodeRequest
+    ) -> VendorGCodeValidationResponse:
+        return validate_vendor_gcode(request.line)
+
+    def estimate_stepper_motion(
+        self, request: StepperMotionEstimateRequest
+    ) -> StepperMotionEstimateResponse:
+        return estimate_stepper_motion(request)
+
+    def calibrate_steps_per_unit(
+        self, request: CoordinateCalibrationRequest
+    ) -> CoordinateCalibrationResponse:
+        return calibrate_steps_per_unit(request)
+
     async def diagnostics(self) -> DiagnosticsResponse:
         checks: list[DiagnosticCheck] = []
 
@@ -246,6 +283,7 @@ class CookBotController:
         await add_transport_check("mega_limit_switches", "get_limit_switches")
         await add_transport_check("mega_self_test", "self_test")
         await add_transport_check("mega_firmware_status", "get_firmware_status")
+        await add_transport_check("mega_motion_profile", "get_motion_profile")
         await add_transport_check("mega_inputs", "read_inputs")
 
         try:
@@ -941,6 +979,13 @@ class CookBotController:
             "RestoreValidationResponse": RestoreValidationResponse.model_json_schema(),
             "ProductReadinessResponse": ProductReadinessResponse.model_json_schema(),
             "CommissioningGuideResponse": CommissioningGuideResponse.model_json_schema(),
+            "VendorGCodeRequest": VendorGCodeRequest.model_json_schema(),
+            "VendorGCodeValidationResponse": VendorGCodeValidationResponse.model_json_schema(),
+            "VendorProfileResponse": VendorProfileResponse.model_json_schema(),
+            "StepperMotionEstimateRequest": StepperMotionEstimateRequest.model_json_schema(),
+            "StepperMotionEstimateResponse": StepperMotionEstimateResponse.model_json_schema(),
+            "CoordinateCalibrationRequest": CoordinateCalibrationRequest.model_json_schema(),
+            "CoordinateCalibrationResponse": CoordinateCalibrationResponse.model_json_schema(),
             "VersionResponse": VersionResponse.model_json_schema(),
             "ErrorTaxonomy": ERROR_TAXONOMY,
             "MegaProtocolCommands": MEGA_PROTOCOL_COMMANDS,
@@ -1034,6 +1079,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/version", response_model=VersionResponse)
     async def version() -> VersionResponse:
         return controller.version()
+
+    @app.get("/vendor/profile", response_model=VendorProfileResponse)
+    async def vendor_controller_profile() -> VendorProfileResponse:
+        return controller.vendor_profile()
+
+    @app.post("/vendor/gcode/validate", response_model=VendorGCodeValidationResponse)
+    async def vendor_gcode_validate(
+        request: VendorGCodeRequest,
+    ) -> VendorGCodeValidationResponse:
+        return controller.validate_vendor_gcode(request)
+
+    @app.post("/motion/estimate", response_model=StepperMotionEstimateResponse)
+    async def motion_estimate(
+        request: StepperMotionEstimateRequest,
+    ) -> StepperMotionEstimateResponse:
+        return controller.estimate_stepper_motion(request)
+
+    @app.post("/motion/calibrate", response_model=CoordinateCalibrationResponse)
+    async def motion_calibrate(
+        request: CoordinateCalibrationRequest,
+    ) -> CoordinateCalibrationResponse:
+        return controller.calibrate_steps_per_unit(request)
 
     @app.get("/diagnostics", response_model=DiagnosticsResponse)
     async def diagnostics() -> DiagnosticsResponse:

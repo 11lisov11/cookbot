@@ -5,6 +5,11 @@ source:
   android_app: RA Pendant
   android_version: "1.01"
   evidence: docs/vendor_axis4ui_protocol.md
+  reverse_engineering_report: docs/vendor_axis4ui_reverse_engineering.md
+  artifacts:
+    desktop_sha256: FEA9B588DB446B81532F94B9A32E908E2BE4F799638B8C4B757D5997EA6D8263
+    qt_ui_sha256: 1E00239966956997B8690CF9A728ED0B56A1D37919010E212CFB247879104ACA
+    android_sha256: D9CB12E40DAAA694B059452840824E3AA604C54AFE11076ECB2B8DB57B83F5FA
 transport:
   framing: carriage_return
   desktop_serial_baud_default: 115200
@@ -12,6 +17,15 @@ transport:
   android_bluetooth_profile: bluetooth_classic_spp_rfcomm
   android_spp_uuid: 00001101-0000-1000-8000-00805f9b34fb
   response_shape: vendor_text_coordinates
+  checksum_or_authentication: none_observed
+host_behavior:
+  desktop_jog_includes_feed: true
+  android_jog_includes_feed: false
+  android_uses_controller_default_or_persistent_feed: true
+  desktop_jog_ui_update_delay_ms: 100
+  desktop_program_line_delay_ms: 500
+  desktop_waits_for_ack_or_motion_complete: false
+  android_receive_poll_ms: 30
 motion:
   coordinate_axes: [X, Y, Z, E]
   axis_e_label: slide_table
@@ -36,6 +50,11 @@ motion:
     relative_mode: G91
     set_position: "G92 X{x} Y{y} Z{z}"
     vendor_calibration_reset: G2696
+  coordinate_conversion:
+    location: vendor_controller_firmware_or_eeprom
+    present_in_desktop_or_apk: false
+    direct_motor_mapping_recovered: false
+    calibration_reset_semantics_recovered: false
 outputs:
   driver_enable_on: M6216
   driver_enable_off: M6228
@@ -54,6 +73,16 @@ known_presets:
   vertical: "G1 X0 Y140 Z-30"
   stretch: "G1 X0 Y320 Z0"
   contract: "G1 X0 Y155 Z-40"
+missing_controller_parameters:
+  - motor full steps per revolution for each installed motor
+  - A4988 MS1/MS2/MS3 jumper state per driver
+  - A4988 Rsense and measured Vref per driver
+  - steps per degree for A/B/C
+  - screw or belt pitch and steps per millimeter for slider E
+  - arm link dimensions and inverse kinematics
+  - acceleration and maximum STEP frequency per axis
+  - Cartesian workspace and collision envelope
+  - complete response and error grammar
 safety:
   direct_vendor_gcode_enabled: false
   reason: Vendor inverse kinematics, link dimensions, coordinate limits, and controller feedback grammar are not fully documented.

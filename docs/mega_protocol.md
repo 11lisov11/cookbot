@@ -25,6 +25,8 @@ Response:
 - `get_limit_switches`: limit switch state.
 - `self_test`: non-motion firmware self-test.
 - `get_firmware_status`: firmware version, ESTOP, watchdog, and bench lock status.
+- `get_motion_profile`: non-motion report of raw STEP timing, nominal STEP
+  frequency, coordinate-mode support, and calibration verification flags.
 - `read_inputs`: ESTOP/limit input snapshot.
 - `estop`: immediately disables motion and bench unlock.
 - `clear_estop`: clears ESTOP and requires re-home.
@@ -41,6 +43,9 @@ Response:
 - `step_backend` is `direct` or `digital`. `direct` uses direct AVR port writes for speed. `digital` uses Arduino `digitalWrite`, matching the original `jog_axis` pulse path. `SLIDER`/`E0` defaults to `digital`; other axes default to `direct`.
 - `move_axis` and `seek_limit` accept `min_delay_us` up to `200000` and `start_delay_us` up to `250000` for worm-gear/low-torque bring-up. Long slow moves may take minutes; the PC tooling sizes its serial timeout from the requested step count and delay.
 - Omitted raw timing fields use conservative commissioned defaults: A move `5000us -> 3500us`, A seek `4000us`, B/C move and seek `8000us` flat, and E0 move `12000us` flat. Explicit fields are still validated and bounded.
+- `get_motion_profile` reports those defaults as approximately `285.47 STEP/s`
+  for A, `124.94 STEP/s` for B/C, and `83.28 STEP/s` for E. These are raw
+  pulse rates, not Cartesian millimeters per second.
 - `set_axis_enabled`: enables or disables one RAMPS stepper driver. Fields: `axis`, `enabled` (`0` or `1`). ESTOP clears all driver enables.
 - `jog_axis`, `move_axis`, and `seek_limit` automatically turn RAMPS `D9` on for driver cooling before movement and refresh a post-motion cooldown timer after the last step. The default cooldown is `COOKBOT_RAMPS14_MOTION_FAN_COOLDOWN_MS=120000` ms.
 - `move_axis` and `seek_limit` disable the driver at command completion unless hold is requested.
@@ -99,6 +104,8 @@ Default release firmware has:
 
 - `COOKBOT_HARDWARE_CONFIGURED=0`
 - `COOKBOT_BENCH_OUTPUTS_ENABLED=0`
+- `COOKBOT_MICROSTEP_CONFIG_VERIFIED=0`
+- `COOKBOT_COORDINATE_CALIBRATION_VERIFIED=0`
 - `motion_commands_enabled=false`
 - `set_joint` and `set_gripper` rejected on real Mega firmware
 

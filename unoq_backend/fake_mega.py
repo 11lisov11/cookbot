@@ -22,7 +22,7 @@ class FakeMegaDevice:
             return {
                 "name": "CookBot Fake Mega",
                 "firmware": "cookbot-fake-mega",
-                "version": "0.2.0",
+                "version": "0.3.0",
                 "protocol_version": 1,
                 "hardware_configured": False,
                 "capabilities": self.simulator.capabilities(),
@@ -39,6 +39,8 @@ class FakeMegaDevice:
             return {"self_test": self.simulator.self_test()}
         if command == "get_firmware_status":
             return {"firmware_status": self.simulator.firmware_status()}
+        if command == "get_motion_profile":
+            return {"motion_profile": self.simulator.motion_profile()}
         if command == "read_inputs":
             return {"inputs": self.simulator.read_inputs()}
         if command == "bench_unlock":

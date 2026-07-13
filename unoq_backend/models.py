@@ -343,3 +343,66 @@ class CommissioningGuideResponse(BaseModel):
     ready_for_real_motion: bool = False
     steps: list[ChecklistItem] = Field(default_factory=list)
     commands: list[CommissioningCommand] = Field(default_factory=list)
+
+
+class VendorGCodeRequest(BaseModel):
+    line: str = Field(min_length=1, max_length=256)
+
+
+class VendorGCodeCommand(BaseModel):
+    family: Literal["G", "M"]
+    code: int
+    name: str
+    parameters: dict[str, float] = Field(default_factory=dict)
+    normalized: str
+    observed_in_vendor_apps: bool = True
+
+
+class VendorGCodeValidationResponse(BaseModel):
+    accepted: bool
+    command: VendorGCodeCommand | None = None
+    rejected_reason: str | None = None
+    direct_execution_enabled: bool = False
+
+
+class VendorProfileResponse(BaseModel):
+    project: Literal["CookBot"] = "CookBot"
+    source: str
+    transport: dict[str, Any]
+    coordinate_defaults: dict[str, float]
+    feed_mm_s: dict[str, float]
+    commands: dict[str, str]
+    missing_controller_parameters: list[str]
+    direct_execution_enabled: bool = False
+
+
+class StepperMotionEstimateRequest(BaseModel):
+    motor_full_steps_per_revolution: int = Field(default=200, ge=1, le=100000)
+    microsteps: Literal[1, 2, 4, 8, 16] = 16
+    gearbox_ratio: float = Field(default=1.0, gt=0.0, le=10000.0)
+    step_delay_us: float = Field(gt=0.0, le=1_000_000.0)
+    pulse_us: float = Field(default=3.0, gt=0.0, le=1000.0)
+    travel_per_output_revolution_mm: float | None = Field(default=None, gt=0.0)
+
+
+class StepperMotionEstimateResponse(BaseModel):
+    step_period_us: float
+    step_frequency_hz: float
+    motor_rpm: float
+    output_rpm: float
+    steps_per_motor_revolution: float
+    steps_per_output_revolution: float
+    linear_speed_mm_s: float | None = None
+
+
+class CoordinateCalibrationRequest(BaseModel):
+    commanded_steps: int = Field(gt=0, le=100_000_000)
+    measured_units: float = Field(gt=0.0, le=1_000_000.0)
+    unit: Literal["mm", "degree"]
+
+
+class CoordinateCalibrationResponse(BaseModel):
+    unit: Literal["mm", "degree"]
+    steps_per_unit: float
+    units_per_step: float
+    verified_for_real_motion: bool = False

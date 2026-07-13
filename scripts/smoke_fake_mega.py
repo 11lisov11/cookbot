@@ -33,6 +33,9 @@ async def main() -> None:
         firmware_status = await transport.send("get_firmware_status")
         assert firmware_status.ok is True
         assert firmware_status.data["firmware_status"]["bench_outputs_enabled"] is False
+        motion_profile = await transport.send("get_motion_profile")
+        assert motion_profile.ok is True
+        assert motion_profile.data["motion_profile"]["coordinate_mode_supported"] is False
         assert (await transport.send("read_inputs")).ok is True
         bench_unlock = await transport.send("bench_unlock", {"confirm": "BENCH_ONLY"})
         assert bench_unlock.ok is False

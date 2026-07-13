@@ -5,6 +5,9 @@ unsigned Windows executable was not launched. The analysis used its PyInstaller
 archive, its Qt Designer XML resource (`Pyud.dll`), and the decompiled Android
 application. Third-party binaries remain local and are ignored by Git.
 
+The extraction method, bytecode/APK findings, and native-code boundary are in
+`docs/vendor_axis4ui_reverse_engineering.md`.
+
 ## Identity and hashes
 
 - Desktop UI: `Red Sun Global - Robot Arm Four Axis Teaching Controller v1.12`.
@@ -30,6 +33,7 @@ desktop Python application.
   `00001101-0000-1000-8000-00805f9b34fb`.
 - The desktop UI reads line-oriented controller feedback. After a move it
   searches the received text for `X`, `Y`, `Z`, and `E` coordinate fields.
+- Desktop jogs include `F`; Android jogs omit it and rely on controller state.
 
 Bluetooth SPP transports bytes only. The UART baud between the Bluetooth
 module and Mega is a separate module setting and cannot be recovered from the
@@ -46,6 +50,7 @@ G1 X0 Y205 Z135 E-500 F100\r
 G90\r
 G91\r
 G92 X0 Y100 Z0\r
+G4 S1\r
 ```
 
 The UI labels `F` as mm/s and constrains both jog and program speeds to
@@ -64,7 +69,8 @@ Observed reference positions:
 
 The desktop application sends program lines with a fixed `0.5 s` host delay.
 This delay is not motor pulse timing and must not be copied into the A4988 step
-generator.
+generator. It also does not wait for an acknowledgement or motion-complete
+response before transmitting the next program line.
 
 ## Output commands
 
@@ -105,6 +111,12 @@ physical board.
 - Bluetooth module model, configured UART baud, PIN, MAC address, and RFCOMM
   channel on the physical robot.
 - Physical meaning of `M11/M12`.
+
+The supplied bundle contains no controller firmware or EEPROM parameter dump.
+Consequently, "coordinate settings" means the missing steps-per-unit,
+microstep, transmission, acceleration, geometry, and kinematic data described
+in `docs/coordinate_motion_calibration.md`; those values cannot be recovered
+from this EXE/APK.
 
 CookBot therefore does not execute vendor G-code directly. The JSON safety
 protocol remains authoritative until kinematics, calibration, limits, and

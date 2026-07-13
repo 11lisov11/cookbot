@@ -39,7 +39,7 @@ powershell -ExecutionPolicy Bypass -File scripts/validate_release.ps1 --latest -
 Or validate a specific bundle:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/validate_release.ps1 dist/release/cookbot-0.2.0-a5f0d2d.zip --json
+powershell -ExecutionPolicy Bypass -File scripts/validate_release.ps1 dist/release/cookbot-0.3.0-<commit>.zip --json
 ```
 
 Validation reads `COOKBOT_RELEASE_MANIFEST.json` inside the zip and checks every file size and SHA256 digest.

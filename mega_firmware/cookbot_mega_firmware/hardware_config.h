@@ -103,6 +103,15 @@
 #define COOKBOT_AXIS_PIN_CONFIGURED 0
 #endif
 
+// Coordinate motion remains locked until these are measured for every axis.
+#ifndef COOKBOT_MICROSTEP_CONFIG_VERIFIED
+#define COOKBOT_MICROSTEP_CONFIG_VERIFIED 0
+#endif
+
+#ifndef COOKBOT_COORDINATE_CALIBRATION_VERIFIED
+#define COOKBOT_COORDINATE_CALIBRATION_VERIFIED 0
+#endif
+
 #ifndef COOKBOT_BENCH_MAX_PULSE_MS
 #define COOKBOT_BENCH_MAX_PULSE_MS 250
 #endif

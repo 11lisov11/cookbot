@@ -1,5 +1,20 @@
 # Release Notes
 
+## v0.3.0 Vendor Coordinate Analysis
+
+- Recovered the AXIS4UI Python 3.9 command handlers and Qt defaults from the
+  supplied PyInstaller bundle without running the unsigned executable.
+- Decompiled the RA Pendant Android application and verified Bluetooth Classic
+  SPP framing, jog behavior, command strings, and receive polling.
+- Added a strict vendor G-code parser, safe TCP/stdio behavioral emulator, and
+  API validation that never forwards vendor commands to Mega.
+- Added STEP/RPM/linear-speed and steps-per-unit calculators plus an explicit
+  incomplete motion-calibration record.
+- Added `get_motion_profile` firmware diagnostics and independent microstep and
+  coordinate-calibration verification locks.
+- Documented why the current pulse profiles are slow and which physical A4988,
+  motor, transmission, and kinematic measurements are still required.
+
 ## v0.2.0 Hardware Integration Kit
 
 - Statically analyzed the supplied AXIS4UI desktop and Android controller bundle and recorded the evidenced G-code, speed range, coordinate model, output commands, framing, and Bluetooth SPP UUID without executing the unsigned vendor application.

@@ -17,12 +17,20 @@ def test_schema_endpoint_exposes_core_contracts(client):
     assert "ProductReadinessResponse" in body
     assert "CommissioningGuideResponse" in body
     assert "VersionResponse" in body
+    assert "VendorGCodeRequest" in body
+    assert "VendorGCodeValidationResponse" in body
+    assert "VendorProfileResponse" in body
+    assert "StepperMotionEstimateRequest" in body
+    assert "StepperMotionEstimateResponse" in body
+    assert "CoordinateCalibrationRequest" in body
+    assert "CoordinateCalibrationResponse" in body
     assert "ErrorTaxonomy" in body
     assert "MegaProtocolCommands" in body
     assert "bench_test_output" in body["MegaProtocolCommands"]
     assert "jog_axis" in body["MegaProtocolCommands"]
     assert "move_axis" in body["MegaProtocolCommands"]
     assert "seek_limit" in body["MegaProtocolCommands"]
+    assert "get_motion_profile" in body["MegaProtocolCommands"]
 
 
 def test_hardware_protocol_and_automation_docs_exist():

@@ -21,7 +21,7 @@ def test_release_versions_are_synchronized():
     package = yaml.safe_load((ROOT / "config/vendor_controller_profile.yaml").read_text())
     web_package = yaml.safe_load((ROOT / "web/package.json").read_text())
 
-    assert __version__ == "0.2.0"
+    assert __version__ == "0.3.0"
     assert web_package["version"] == __version__
     assert package["project"] == "CookBot"
 

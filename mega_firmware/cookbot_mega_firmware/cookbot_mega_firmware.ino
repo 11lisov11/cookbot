@@ -41,6 +41,7 @@ String hardwareConfigJson();
 String limitSwitchesJson();
 String selfTestJson();
 String firmwareStatusJson();
+String motionProfileJson();
 String inputsJson();
 String benchOutputsEnabledJson();
 String boolJson(bool value);
@@ -144,7 +145,7 @@ void handleLine(const String &line) {
 
   if (command == "hello") {
     String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-    sendOk(id, String("\"name\":\"CookBot Mega\",\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.2.0\",\"protocol_version\":1,\"hardware_configured\":") + configured + ",\"capabilities\":" + capabilitiesJson());
+    sendOk(id, String("\"name\":\"CookBot Mega\",\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.3.0\",\"protocol_version\":1,\"hardware_configured\":") + configured + ",\"capabilities\":" + capabilitiesJson());
     return;
   }
   if (command == "ping") {
@@ -169,6 +170,10 @@ void handleLine(const String &line) {
   }
   if (command == "get_firmware_status") {
     sendOk(id, "\"firmware_status\":" + firmwareStatusJson());
+    return;
+  }
+  if (command == "get_motion_profile") {
+    sendOk(id, "\"motion_profile\":" + motionProfileJson());
     return;
   }
   if (command == "read_inputs") {
@@ -926,12 +931,12 @@ void sendState(const String &id) {
 
 String capabilitiesJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  return "{\"protocol_version\":1,\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.2.0\",\"hardware_configured\":" + configured + ",\"motion_commands_enabled\":false,\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"supported_transports\":[\"usb_serial\",\"bluetooth_rfcomm\"],\"supported_commands\":[\"hello\",\"ping\",\"get_state\",\"get_capabilities\",\"get_hardware_config\",\"get_limit_switches\",\"self_test\",\"get_firmware_status\",\"read_inputs\",\"bench_unlock\",\"bench_test_output\",\"jog_axis\",\"move_axis\",\"seek_limit\",\"set_output\",\"set_axis_enabled\",\"get_faults\",\"inject_fault\",\"clear_faults\",\"enable_motion\",\"home_all\",\"set_joint\",\"set_gripper\",\"estop\",\"clear_estop\"]}";
+  return "{\"protocol_version\":1,\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.3.0\",\"hardware_configured\":" + configured + ",\"motion_commands_enabled\":false,\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"supported_transports\":[\"usb_serial\",\"bluetooth_rfcomm\"],\"supported_commands\":[\"hello\",\"ping\",\"get_state\",\"get_capabilities\",\"get_hardware_config\",\"get_limit_switches\",\"self_test\",\"get_firmware_status\",\"get_motion_profile\",\"read_inputs\",\"bench_unlock\",\"bench_test_output\",\"jog_axis\",\"move_axis\",\"seek_limit\",\"set_output\",\"set_axis_enabled\",\"get_faults\",\"inject_fault\",\"clear_faults\",\"enable_motion\",\"home_all\",\"set_joint\",\"set_gripper\",\"estop\",\"clear_estop\"]}";
 }
 
 String hardwareConfigJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  return "{\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"axis_count\":" + String(COOKBOT_AXIS_COUNT) + ",\"limit_switch_count\":" + String(COOKBOT_LIMIT_SWITCH_COUNT) + ",\"estop_pin\":" + String(COOKBOT_ESTOP_PIN) + ",\"gripper_pin\":" + String(COOKBOT_GRIPPER_PIN) + ",\"axis_pin_configured\":" + ramps14CommissioningJson() + ",\"note\":\"ramps14_jog_only_no_autonomous_motion\"}";
+  return "{\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"axis_count\":" + String(COOKBOT_AXIS_COUNT) + ",\"limit_switch_count\":" + String(COOKBOT_LIMIT_SWITCH_COUNT) + ",\"estop_pin\":" + String(COOKBOT_ESTOP_PIN) + ",\"gripper_pin\":" + String(COOKBOT_GRIPPER_PIN) + ",\"axis_pin_configured\":" + ramps14CommissioningJson() + ",\"microstep_config_verified\":" + boolJson(COOKBOT_MICROSTEP_CONFIG_VERIFIED) + ",\"coordinate_calibration_verified\":" + boolJson(COOKBOT_COORDINATE_CALIBRATION_VERIFIED) + ",\"note\":\"ramps14_jog_only_no_autonomous_motion\"}";
 }
 
 String limitSwitchesJson() {
@@ -949,7 +954,7 @@ String selfTestJson() {
 
 String firmwareStatusJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  String data = "{\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.2.0\",\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"bench_unlocked\":" + boolJson(benchUnlocked) + ",\"estop\":" + boolJson(estopActive) + ",\"motion_enabled\":" + boolJson(motionEnabled) + ",\"watchdog_timeout_ms\":" + String(WATCHDOG_TIMEOUT_MS);
+  String data = "{\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.3.0\",\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"bench_unlocked\":" + boolJson(benchUnlocked) + ",\"estop\":" + boolJson(estopActive) + ",\"motion_enabled\":" + boolJson(motionEnabled) + ",\"microstep_config_verified\":" + boolJson(COOKBOT_MICROSTEP_CONFIG_VERIFIED) + ",\"coordinate_calibration_verified\":" + boolJson(COOKBOT_COORDINATE_CALIBRATION_VERIFIED) + ",\"watchdog_timeout_ms\":" + String(WATCHDOG_TIMEOUT_MS);
 #if COOKBOT_BLUETOOTH_UART_ENABLED
   data += ",\"bluetooth_uart_port\":" + String(COOKBOT_BLUETOOTH_UART_PORT) + ",\"bluetooth_baud\":" + String(COOKBOT_BLUETOOTH_BAUD) + ",\"bluetooth_rx_pin\":" + String(COOKBOT_BLUETOOTH_RX_PIN) + ",\"bluetooth_tx_pin\":" + String(COOKBOT_BLUETOOTH_TX_PIN);
 #endif
@@ -957,6 +962,18 @@ String firmwareStatusJson() {
   data += ",\"motion_fan_output\":\"D9\",\"motion_fan_cooldown_ms\":" + String(COOKBOT_RAMPS14_MOTION_FAN_COOLDOWN_MS) + ",\"motion_fan_auto_active\":" + boolJson(ramps14MotionFanAutoActive) + ",\"motion_fan_remaining_ms\":" + String(ramps14MotionFanRemainingMs());
 #endif
   data += "}";
+  return data;
+}
+
+String motionProfileJson() {
+  String data = "{\"coordinate_mode_supported\":false,\"vendor_gcode_supported\":false,\"microstep_config_verified\":" + boolJson(COOKBOT_MICROSTEP_CONFIG_VERIFIED) + ",\"coordinate_calibration_verified\":" + boolJson(COOKBOT_COORDINATE_CALIBRATION_VERIFIED) + ",\"profiles\":[";
+#if COOKBOT_RAMPS14_COMMISSIONING
+  data += "{\"axis\":\"A\",\"pulse_us\":3,\"start_delay_us\":5000,\"min_delay_us\":3500,\"nominal_max_step_hz\":285.47},";
+  data += "{\"axis\":\"B\",\"pulse_us\":4,\"start_delay_us\":8000,\"min_delay_us\":8000,\"nominal_max_step_hz\":124.94},";
+  data += "{\"axis\":\"C\",\"pulse_us\":4,\"start_delay_us\":8000,\"min_delay_us\":8000,\"nominal_max_step_hz\":124.94},";
+  data += "{\"axis\":\"E\",\"pulse_us\":8,\"start_delay_us\":12000,\"min_delay_us\":12000,\"nominal_max_step_hz\":83.28}";
+#endif
+  data += "]}";
   return data;
 }
 

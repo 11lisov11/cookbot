@@ -508,7 +508,13 @@ def cmd_mega_serial_probe(args: argparse.Namespace) -> int:
     with handle:
         time.sleep(2.0)
         handle.reset_input_buffer()
-        for command in ("hello", "get_firmware_status", "self_test", "read_inputs"):
+        for command in (
+            "hello",
+            "get_firmware_status",
+            "get_motion_profile",
+            "self_test",
+            "read_inputs",
+        ):
             request = build_request(command)
             handle.write(encode_request(request))
             response = None

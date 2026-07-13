@@ -28,6 +28,10 @@ def test_fake_mega_motion_lifecycle():
     firmware_status = device.handle(build_request("get_firmware_status"))
     assert firmware_status.ok is True
     assert firmware_status.data["firmware_status"]["bench_outputs_enabled"] is False
+    motion_profile = device.handle(build_request("get_motion_profile"))
+    assert motion_profile.ok is True
+    assert motion_profile.data["motion_profile"]["coordinate_mode_supported"] is False
+    assert motion_profile.data["motion_profile"]["microstep_config_verified"] is False
     inputs = device.handle(build_request("read_inputs"))
     assert inputs.ok is True
     bench_unlock = device.handle(build_request("bench_unlock", {"confirm": "BENCH_ONLY"}))

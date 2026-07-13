@@ -1,0 +1,69 @@
+project: CookBot
+status: incomplete_hardware_measurements_required
+evidence: docs/coordinate_motion_calibration.md
+formulae:
+  steps_per_motor_revolution: motor_full_steps_per_revolution * microsteps
+  steps_per_output_revolution: steps_per_motor_revolution * gearbox_ratio
+  output_rpm: step_frequency_hz * 60 / steps_per_output_revolution
+  slider_steps_per_mm: steps_per_motor_revolution * gearbox_ratio / travel_per_output_revolution_mm
+vendor_coordinate_layer:
+  axes: [X, Y, Z, E]
+  coordinate_units: mm_claimed_by_vendor_ui
+  feed_range_mm_s: [5, 150]
+  default_feed_mm_s: 100
+  controller_conversion_available: false
+axes:
+  A:
+    ramps_channel: Y
+    gearbox_ratio: 10
+    gearbox_ratio_confidence: inferred_from_FLE_42_010_marking
+    motor_model: null
+    motor_full_steps_per_revolution: null
+    microsteps: null
+    measured_vref_v: null
+    rsense_ohm: null
+    steps_per_degree: null
+    accepted_commissioning_step_delay_us: 3500
+    accepted_commissioning_pulse_us: 3
+  B:
+    ramps_channel: X
+    gearbox_ratio: 10
+    gearbox_ratio_confidence: inferred_from_FLE_42_010_marking
+    motor_model: null
+    motor_full_steps_per_revolution: null
+    microsteps: null
+    measured_vref_v: null
+    rsense_ohm: null
+    steps_per_degree: null
+  C:
+    ramps_channel: Z
+    gearbox_ratio: 10
+    gearbox_ratio_confidence: inferred_from_FLE_42_010_marking
+    motor_model: null
+    motor_full_steps_per_revolution: null
+    microsteps: null
+    measured_vref_v: null
+    rsense_ohm: null
+    steps_per_degree: null
+  E:
+    ramps_channel: E0
+    gearbox_ratio: 1
+    gearbox_ratio_confidence: user_reported_no_external_gearbox
+    motor_model: null
+    motor_full_steps_per_revolution: null
+    microsteps: null
+    measured_vref_v: null
+    rsense_ohm: null
+    travel_per_output_revolution_mm: null
+    steps_per_mm: null
+    accepted_commissioning_step_delay_us: 12000
+    accepted_commissioning_pulse_us: 8
+real_motion_gate:
+  unlocked: false
+  required:
+    - verified microstep jumper state for every driver
+    - measured Vref and identified Rsense for every A4988
+    - motor datasheet and winding current for every installed motor
+    - measured steps per degree or millimeter
+    - verified min and max travel limits
+    - hardware ESTOP that removes or disables motion power

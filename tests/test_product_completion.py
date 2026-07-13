@@ -100,6 +100,10 @@ def test_optional_api_token_protects_product_endpoints(tmp_path: Path):
     assert client.get("/product/readiness").status_code == 401
     assert client.get("/commissioning/guide").status_code == 401
     assert client.get("/hardware/gate/report").status_code == 401
+    assert client.get("/vendor/profile").status_code == 401
+    assert client.post("/vendor/gcode/validate", json={"line": "G90"}).status_code == 401
+    assert client.post("/motion/estimate", json={}).status_code == 401
+    assert client.post("/motion/calibrate", json={}).status_code == 401
     assert client.post("/restore/validate", json={}).status_code == 401
 
     headers = {"X-CookBot-Token": "secret"}
@@ -108,6 +112,24 @@ def test_optional_api_token_protects_product_endpoints(tmp_path: Path):
     assert client.get("/product/readiness", headers=headers).status_code == 200
     assert client.get("/commissioning/guide", headers=headers).status_code == 200
     assert client.get("/hardware/gate/report", headers=headers).status_code == 200
+    assert client.get("/vendor/profile", headers=headers).status_code == 200
+    assert client.post("/vendor/gcode/validate", json={"line": "G90"}, headers=headers).status_code == 200
+    assert client.post(
+        "/motion/estimate",
+        json={
+            "motor_full_steps_per_revolution": 200,
+            "microsteps": 16,
+            "gearbox_ratio": 10,
+            "step_delay_us": 3500,
+            "pulse_us": 3,
+        },
+        headers=headers,
+    ).status_code == 200
+    assert client.post(
+        "/motion/calibrate",
+        json={"commanded_steps": 4000, "measured_units": 25, "unit": "mm"},
+        headers=headers,
+    ).status_code == 200
     restore = client.post("/restore/validate", json={}, headers=headers)
     assert restore.status_code == 200
     assert restore.json()["valid"] is False

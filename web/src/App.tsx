@@ -2,8 +2,10 @@ import {
   AlertTriangle,
   Bluetooth,
   Bot,
+  Calculator,
   Camera,
   CheckCircle2,
+  Code2,
   Download,
   FileText,
   Hand,
@@ -169,6 +171,30 @@ type RestoreValidationResponse = {
   applies_real_motion_settings: boolean;
 };
 
+type VendorProfileResponse = {
+  source: string;
+  feed_mm_s: { minimum: number; default: number; maximum: number };
+  missing_controller_parameters: string[];
+  direct_execution_enabled: boolean;
+};
+
+type StepperMotionEstimateResponse = {
+  step_period_us: number;
+  step_frequency_hz: number;
+  motor_rpm: number;
+  output_rpm: number;
+  steps_per_motor_revolution: number;
+  steps_per_output_revolution: number;
+  linear_speed_mm_s: number | null;
+};
+
+type VendorGCodeValidationResponse = {
+  accepted: boolean;
+  command: { normalized: string; name: string } | null;
+  rejected_reason: string | null;
+  direct_execution_enabled: boolean;
+};
+
 type TabId = "control" | "recipes" | "diagnostics" | "calibration" | "hardware" | "settings";
 
 const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE || window.location.origin;
@@ -218,6 +244,18 @@ export default function App() {
   const [version, setVersion] = useState<VersionResponse | null>(null);
   const [productReadiness, setProductReadiness] = useState<ProductReadinessResponse | null>(null);
   const [commissioningGuide, setCommissioningGuide] = useState<CommissioningGuideResponse | null>(null);
+  const [vendorProfile, setVendorProfile] = useState<VendorProfileResponse | null>(null);
+  const [motionEstimate, setMotionEstimate] = useState<StepperMotionEstimateResponse | null>(null);
+  const [motionInputs, setMotionInputs] = useState({
+    motorSteps: "200",
+    microsteps: "16",
+    gearbox: "10",
+    delayUs: "3500",
+    pulseUs: "3",
+    travelMm: ""
+  });
+  const [vendorGcode, setVendorGcode] = useState("G1 X0 Y205 Z100 F100");
+  const [gcodeValidation, setGcodeValidation] = useState<VendorGCodeValidationResponse | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("control");
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem("cookbot_onboarded") === "1");
   const [backendUrl, setBackendUrl] = useState(() => currentApiBase());
@@ -268,7 +306,8 @@ export default function App() {
         nextWizard,
         nextAcceptance,
         nextProductReadiness,
-        nextCommissioningGuide
+        nextCommissioningGuide,
+        nextVendorProfile
       ] = await Promise.all([
         api<RecipeRuntimeStatus>("/recipes/runtime/status"),
         api<WorkspaceModel>("/workspace"),
@@ -279,7 +318,8 @@ export default function App() {
         api<CalibrationWizardStatus>("/calibration/wizard/status"),
         api<AcceptanceReport>("/acceptance"),
         api<ProductReadinessResponse>("/product/readiness"),
-        api<CommissioningGuideResponse>("/commissioning/guide")
+        api<CommissioningGuideResponse>("/commissioning/guide"),
+        api<VendorProfileResponse>("/vendor/profile")
       ]);
       setState(nextState);
       setSettings(nextSettings);
@@ -296,6 +336,7 @@ export default function App() {
       setAcceptance(nextAcceptance);
       setProductReadiness(nextProductReadiness);
       setCommissioningGuide(nextCommissioningGuide);
+      setVendorProfile(nextVendorProfile);
       setAxisTargets((previous) => seedTargets(previous, nextState));
       setGripperTarget(nextState.gripper.position);
       setMessage("CookBot ready in no-hardware mode");
@@ -332,6 +373,42 @@ export default function App() {
       setMessage(response.accepted ? "AI plan accepted for review" : `AI rejected: ${response.rejected_reason}`);
       return response;
     });
+  }
+
+  async function calculateMotion(event: FormEvent) {
+    event.preventDefault();
+    try {
+      const travel = motionInputs.travelMm.trim();
+      const result = await api<StepperMotionEstimateResponse>("/motion/estimate", {
+        method: "POST",
+        body: JSON.stringify({
+          motor_full_steps_per_revolution: Number(motionInputs.motorSteps),
+          microsteps: Number(motionInputs.microsteps),
+          gearbox_ratio: Number(motionInputs.gearbox),
+          step_delay_us: Number(motionInputs.delayUs),
+          pulse_us: Number(motionInputs.pulseUs),
+          travel_per_output_revolution_mm: travel ? Number(travel) : null
+        })
+      });
+      setMotionEstimate(result);
+      setMessage("Motion estimate calculated; no hardware command was sent");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Motion estimate failed");
+    }
+  }
+
+  async function validateVendorGcode(event: FormEvent) {
+    event.preventDefault();
+    try {
+      const result = await api<VendorGCodeValidationResponse>("/vendor/gcode/validate", {
+        method: "POST",
+        body: JSON.stringify({ line: vendorGcode })
+      });
+      setGcodeValidation(result);
+      setMessage(result.accepted ? "Vendor command parsed; direct execution remains locked" : `Vendor command rejected: ${result.rejected_reason}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Vendor command validation failed");
+    }
   }
 
   function startVoiceInput() {
@@ -825,6 +902,35 @@ export default function App() {
           </div>
         </section>
 
+        <section className={panelClass("hardware")}>
+          <div className="panel-title">
+            <Code2 size={19} />
+            <h2>Vendor G-code</h2>
+          </div>
+          <form className="compact-form" onSubmit={validateVendorGcode}>
+            <label className="token-field">
+              <span>AXIS4UI command</span>
+              <textarea value={vendorGcode} onChange={(event) => setVendorGcode(event.target.value)} />
+            </label>
+            <button type="submit">
+              <ShieldAlert size={17} />
+              Validate only
+            </button>
+          </form>
+          <div className="diagnostic-list result-list">
+            <div className="diagnostic-item warn">
+              <strong>Direct execution locked</strong>
+              <span>{vendorProfile?.source || "Vendor profile unavailable"}; observed feed range {vendorProfile?.feed_mm_s.minimum || 5}-{vendorProfile?.feed_mm_s.maximum || 150} mm/s.</span>
+            </div>
+            {gcodeValidation ? (
+              <div className={`diagnostic-item ${gcodeValidation.accepted ? "ok" : "warn"}`}>
+                <strong>{gcodeValidation.accepted ? gcodeValidation.command?.name : "rejected"}</strong>
+                <span>{gcodeValidation.command?.normalized || gcodeValidation.rejected_reason}</span>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
         <section className={panelClass("calibration")}>
           <div className="panel-title">
             <ListTodo size={19} />
@@ -844,6 +950,60 @@ export default function App() {
             <button className="icon-button" title="Reset wizard" onClick={() => runAction("Calibration wizard reset", () => api<CalibrationWizardStatus>("/calibration/wizard/reset", { method: "POST" }))}>
               <RefreshCw size={16} />
             </button>
+          </div>
+        </section>
+
+        <section className={panelClass("calibration")}>
+          <div className="panel-title">
+            <Calculator size={19} />
+            <h2>Coordinate Motion</h2>
+          </div>
+          <form className="compact-form" onSubmit={calculateMotion}>
+            <div className="calibration-grid">
+              <label className="token-field">
+                <span>Motor full steps/rev</span>
+                <input type="number" min="1" value={motionInputs.motorSteps} onChange={(event) => setMotionInputs({ ...motionInputs, motorSteps: event.target.value })} />
+              </label>
+              <label className="token-field">
+                <span>Microsteps</span>
+                <select value={motionInputs.microsteps} onChange={(event) => setMotionInputs({ ...motionInputs, microsteps: event.target.value })}>
+                  {[1, 2, 4, 8, 16].map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label className="token-field">
+                <span>Gearbox ratio</span>
+                <input type="number" min="0.001" step="0.001" value={motionInputs.gearbox} onChange={(event) => setMotionInputs({ ...motionInputs, gearbox: event.target.value })} />
+              </label>
+              <label className="token-field">
+                <span>STEP delay, us</span>
+                <input type="number" min="0.1" step="0.1" value={motionInputs.delayUs} onChange={(event) => setMotionInputs({ ...motionInputs, delayUs: event.target.value })} />
+              </label>
+              <label className="token-field">
+                <span>Pulse width, us</span>
+                <input type="number" min="0.1" step="0.1" value={motionInputs.pulseUs} onChange={(event) => setMotionInputs({ ...motionInputs, pulseUs: event.target.value })} />
+              </label>
+              <label className="token-field">
+                <span>Slider travel/rev, mm</span>
+                <input type="number" min="0.001" step="0.001" placeholder="optional" value={motionInputs.travelMm} onChange={(event) => setMotionInputs({ ...motionInputs, travelMm: event.target.value })} />
+              </label>
+            </div>
+            <button type="submit">
+              <Calculator size={17} />
+              Calculate
+            </button>
+          </form>
+          {motionEstimate ? (
+            <div className="metric-grid result-list">
+              <Metric label="STEP frequency" value={`${motionEstimate.step_frequency_hz.toFixed(2)} Hz`} />
+              <Metric label="Motor speed" value={`${motionEstimate.motor_rpm.toFixed(3)} RPM`} />
+              <Metric label="Output speed" value={`${motionEstimate.output_rpm.toFixed(3)} RPM`} />
+              <Metric label="Steps/output rev" value={motionEstimate.steps_per_output_revolution.toFixed(0)} />
+              {motionEstimate.linear_speed_mm_s !== null ? <Metric label="Linear speed" value={`${motionEstimate.linear_speed_mm_s.toFixed(3)} mm/s`} /> : null}
+            </div>
+          ) : null}
+          <div className="diagnostic-item warn result-list">
+            <strong>Measurement required</strong>
+            <span>Microstep jumpers, A4988 Vref/Rsense, screw lead, joint zero, link lengths, and measured travel are not present in AXIS4UI.</span>
           </div>
         </section>
 
@@ -955,6 +1115,15 @@ export default function App() {
 function StatusPill({ label, value, ok }: { label: string; value: string; ok: boolean }) {
   return (
     <div className={`status-pill ${ok ? "ok" : "warn"}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="metric-item">
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
