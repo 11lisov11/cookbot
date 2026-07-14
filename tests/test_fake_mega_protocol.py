@@ -32,6 +32,7 @@ def test_fake_mega_motion_lifecycle():
     assert motion_profile.ok is True
     assert motion_profile.data["motion_profile"]["coordinate_mode_supported"] is False
     assert motion_profile.data["motion_profile"]["microstep_config_verified"] is False
+    assert motion_profile.data["motion_profile"]["supported_ramp_profiles"] == ["trapezoid", "s_curve"]
     inputs = device.handle(build_request("read_inputs"))
     assert inputs.ok is True
     bench_unlock = device.handle(build_request("bench_unlock", {"confirm": "BENCH_ONLY"}))

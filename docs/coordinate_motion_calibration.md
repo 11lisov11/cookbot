@@ -104,3 +104,6 @@ updated separately after supervised measurements.
 
 Without these measurements, neither `F100` nor a faster Arduino pulse loop can
 produce a trustworthy Cartesian speed.
+
+See `docs/speed_tuning.md` before applying generic TB6600, microstep, current,
+or supply-voltage recommendations to the installed RAMPS/A4988 controller.

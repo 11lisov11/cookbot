@@ -845,7 +845,7 @@ export default function App() {
               <strong>commissioning scripts only</strong>
               <span>ADB deploy, Bluetooth pairing, PlatformIO upload, protocol probes, and bench pulses run from scripts, not from the browser.</span>
             </div>
-            {["smart_home_integration", "bluetooth_config", "mega_firmware_status", "mega_hardware_config", "mega_limit_switches", "mega_self_test", "mega_inputs"].map((name) => {
+            {["smart_home_integration", "bluetooth_config", "mega_firmware_status", "mega_motion_profile", "mega_hardware_config", "mega_limit_switches", "mega_self_test", "mega_inputs"].map((name) => {
               const check = diagnostic(name);
               return (
                 <div className={`diagnostic-item ${check?.ok ? "ok" : "warn"}`} key={name}>

@@ -25,6 +25,7 @@ def test_schema_endpoint_exposes_core_contracts(client):
     assert "CoordinateCalibrationRequest" in body
     assert "CoordinateCalibrationResponse" in body
     assert "ErrorTaxonomy" in body
+    assert "invalid_motion_profile" in body["ErrorTaxonomy"]["config_error"]
     assert "MegaProtocolCommands" in body
     assert "bench_test_output" in body["MegaProtocolCommands"]
     assert "jog_axis" in body["MegaProtocolCommands"]
@@ -48,5 +49,16 @@ def test_hardware_protocol_and_automation_docs_exist():
     assert Path("scripts/hardware_doctor.sh").exists()
     assert Path("scripts/mega_ramps14_jog.ps1").exists()
     assert Path("scripts/mega_ramps14_jog.sh").exists()
+    assert Path("docs/speed_tuning.md").exists()
     assert Path("scripts/build_release.ps1").exists()
     assert Path("scripts/validate_release.ps1").exists()
+
+
+def test_windows_acceptance_script_checks_native_exit_codes():
+    script = Path("scripts/check_all.ps1").read_text(encoding="utf-8")
+
+    assert "function Invoke-Checked" in script
+    assert 'Invoke-Checked "pytest"' in script
+    assert 'Invoke-Checked "web build"' in script
+    assert 'Invoke-Checked "Arduino RAMPS Bluetooth firmware compile"' in script
+    assert 'Invoke-Checked "release bundle validation"' in script

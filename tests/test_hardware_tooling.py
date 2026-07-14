@@ -32,6 +32,9 @@ def test_firmware_raw_motion_defaults_match_commissioned_safe_profiles():
     assert "defaultMinDelayUs = 3500" in source
     assert "defaultStartDelayUs = 12000" in source
     assert 'defaultSeekDelayUs = (axis == "A" || axis == "Y") ? 4000 : 8000' in source
+    assert 'motionProfile = "trapezoid"' in source
+    assert 'motionProfile != "trapezoid" && motionProfile != "s_curve"' in source
+    assert "profileProgressQ10" in source
 
 
 def test_adb_check_dry_run_reports_missing_device():
@@ -114,6 +117,7 @@ def test_ramps14_move_and_seek_dry_run_are_explicit():
     assert '"accel_steps": 300' in default_a_move.stdout
     assert '"decel_steps": 100' in default_a_move.stdout
     assert '"step_backend": "direct"' in default_a_move.stdout
+    assert '"motion_profile": "trapezoid"' in default_a_move.stdout
 
     default_b_move = run_tool(
         "mega-ramps14-move",
@@ -176,6 +180,21 @@ def test_ramps14_move_and_seek_dry_run_are_explicit():
     assert '"accel_steps": 0' in default_slider_move.stdout
     assert '"step_backend": "digital"' in default_slider_move.stdout
 
+    s_curve_move = run_tool(
+        "mega-ramps14-move",
+        "--port",
+        "COM5",
+        "--axis",
+        "A",
+        "--direction",
+        "1",
+        "--motion-profile",
+        "s_curve",
+        "--dry-run",
+    )
+    assert s_curve_move.returncode == 0
+    assert '"motion_profile": "s_curve"' in s_curve_move.stdout
+
     move = run_tool(
         "mega-ramps14-move",
         "--port",
@@ -228,6 +247,66 @@ def test_ramps14_output_dry_run_is_explicit():
     assert "set_output" in fan.stdout
     assert '"output": "D10"' in fan.stdout
     assert '"pwm": 255' in fan.stdout
+
+
+def test_ramp_preview_reports_s_curve_without_serial_hardware():
+    result = run_tool(
+        "mega-ramp-preview",
+        "--steps",
+        "1000",
+        "--pulse-us",
+        "3",
+        "--start-delay-us",
+        "5000",
+        "--min-delay-us",
+        "1000",
+        "--accel-steps",
+        "300",
+        "--decel-steps",
+        "300",
+        "--motion-profile",
+        "s_curve",
+        "--json",
+    )
+    assert result.returncode == 0
+    body = json.loads(result.stdout)
+    assert body["motion_profile"] == "s_curve"
+    assert body["samples"][0]["delay_us"] == 5000
+    assert body["samples"][-1]["delay_us"] == 5000
+    assert body["maximum_step_rate_hz"] > body["minimum_step_rate_hz"]
+
+    overlapping = run_tool(
+        "mega-ramp-preview",
+        "--steps",
+        "100",
+        "--start-delay-us",
+        "5000",
+        "--min-delay-us",
+        "1000",
+        "--accel-steps",
+        "60",
+        "--decel-steps",
+        "60",
+        "--json",
+    )
+    assert overlapping.returncode == 0
+    assert json.loads(overlapping.stdout)["motion_profile"] == "trapezoid"
+
+    invalid = run_tool(
+        "mega-ramp-preview",
+        "--steps",
+        "100",
+        "--start-delay-us",
+        "5000",
+        "--min-delay-us",
+        "1000",
+        "--accel-steps",
+        "-1",
+        "--decel-steps",
+        "20",
+    )
+    assert invalid.returncode == 2
+    assert "invalid_preview_ramp" in invalid.stdout
 
     bad_pwm = run_tool("mega-ramps14-output", "--port", "COM5", "--output", "D10", "--pwm", "999", "--dry-run")
     assert bad_pwm.returncode == 2

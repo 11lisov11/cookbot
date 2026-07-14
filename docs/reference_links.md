@@ -13,6 +13,11 @@ PlatformIO:
 
 - https://docs.platformio.org/en/stable/boards/atmelavr/megaatmega2560.html
 
+RAMPS/A4988 motion controller:
+
+- https://www.allegromicro.com/~/media/files/datasheets/a4988-datasheet.pdf
+- https://www.pololu.com/product-info-merged/2128
+
 Bluetooth and smart-home hub:
 
 - https://www.home-assistant.io/installation/linux
@@ -41,3 +46,4 @@ Notes:
 - The AliExpress page was not machine-readable during planning, so exact robot specs remain unconfirmed.
 - ProBots is a similar reference only, not proof of the user's hardware.
 - FLE42 references support the likely `010 = 10:1` interpretation, but they are not proof of the exact user-installed gearbox without the vendor datasheet.
+- The A4988 current-limit equation depends on the current-sense resistor fitted to the exact carrier. Pololu's carrier guidance also confirms that coil current can differ substantially from bench-supply current; clone resistor values must be read from the installed modules.

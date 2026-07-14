@@ -92,6 +92,7 @@ REQUIRED_PRODUCT_DOCS = [
     Path("docs/vendor_axis4ui_protocol.md"),
     Path("docs/vendor_axis4ui_reverse_engineering.md"),
     Path("docs/coordinate_motion_calibration.md"),
+    Path("docs/speed_tuning.md"),
     Path("docs/release_bundle.md"),
     Path("docs/safety.md"),
     Path("docs/no_hardware_testing.md"),
@@ -111,7 +112,12 @@ ERROR_TAXONOMY = {
     "camera_error": ["camera_disabled"],
     "ai_error": ["forbidden_ai_step", "invalid_move_joint_payload", "invalid_gripper_payload"],
     "recipe_error": ["unknown_recipe", "recipe_locked", "forbidden_recipe_step"],
-    "config_error": ["config_error", "workspace_not_verified", "calibration_required"],
+    "config_error": [
+        "config_error",
+        "workspace_not_verified",
+        "calibration_required",
+        "invalid_motion_profile",
+    ],
     "gcode_error": [
         "invalid_command_syntax",
         "unsupported_g_code",
@@ -870,6 +876,12 @@ class CookBotController:
                     detail="Default firmware keeps COOKBOT_HARDWARE_CONFIGURED=0 and rejects motion.",
                 ),
                 ChecklistItem(
+                    id="ramp_preview",
+                    label="Preview STEP ramp offline",
+                    ok=True,
+                    detail="Calculates trapezoid or S-curve delays and duration without opening a serial port.",
+                ),
+                ChecklistItem(
                     id="explicit_upload_port",
                     label="Choose explicit Mega upload port",
                     ok=True,
@@ -879,7 +891,7 @@ class CookBotController:
                     id="serial_self_test",
                     label="Probe Mega JSON protocol",
                     ok=True,
-                    detail="USB and RFCOMM probes use hello, get_firmware_status, self_test, and read_inputs only.",
+                    detail="USB and RFCOMM probes use hello, get_firmware_status, get_motion_profile, self_test, and read_inputs only.",
                 ),
                 ChecklistItem(
                     id="bluetooth_spp",
@@ -924,6 +936,12 @@ class CookBotController:
                     label="Mega locked build",
                     command="python -m platformio run -e cookbot_mega2560",
                     description="Builds the default no-motion firmware for Arduino Mega 2560.",
+                ),
+                CommissioningCommand(
+                    id="ramp_preview",
+                    label="Offline S-curve preview",
+                    command="python scripts/hardware_tooling.py mega-ramp-preview --steps 1200 --pulse-us 3 --start-delay-us 5000 --min-delay-us 3500 --accel-steps 300 --decel-steps 300 --motion-profile s_curve --json",
+                    description="Calculates raw STEP timing without connecting to Mega.",
                 ),
                 CommissioningCommand(
                     id="mega_upload",

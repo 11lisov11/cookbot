@@ -70,10 +70,11 @@ void clearRamps14MotionFanCooldown();
 void updateRamps14MotionFanCooldown();
 unsigned long ramps14MotionFanRemainingMs();
 bool readRamps14LimitActive(const String &limitId);
-unsigned long profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps);
+unsigned long profileProgressQ10(long numerator, long denominator, bool useSCurve);
+unsigned long profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool useSCurve);
 void slowDelayMicroseconds(unsigned long delayUs);
 bool defaultDigitalStepBackendForAxis(const String &axis);
-long runRamps14Steps(const Ramps14AxisPins &pins, bool digitalStepBackend, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool holdEnabled, const String &targetLimit, bool stopOnLimit, bool &limitHit);
+long runRamps14Steps(const Ramps14AxisPins &pins, bool digitalStepBackend, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool useSCurve, bool holdEnabled, const String &targetLimit, bool stopOnLimit, bool &limitHit);
 
 bool ramps14MotionFanAutoActive = false;
 unsigned long ramps14MotionFanKeepaliveUntilMs = 0;
@@ -145,7 +146,7 @@ void handleLine(const String &line) {
 
   if (command == "hello") {
     String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-    sendOk(id, String("\"name\":\"CookBot Mega\",\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.3.0\",\"protocol_version\":1,\"hardware_configured\":") + configured + ",\"capabilities\":" + capabilitiesJson());
+    sendOk(id, String("\"name\":\"CookBot Mega\",\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.4.0\",\"protocol_version\":1,\"hardware_configured\":") + configured + ",\"capabilities\":" + capabilitiesJson());
     return;
   }
   if (command == "ping") {
@@ -506,6 +507,10 @@ void handleRamps14MoveAxis(const String &id, const String &line) {
   if (stepBackend.length() == 0) {
     stepBackend = defaultDigitalStepBackendForAxis(axis) ? "digital" : "direct";
   }
+  String motionProfile = extractJsonString(line, "motion_profile");
+  if (motionProfile.length() == 0) {
+    motionProfile = "trapezoid";
+  }
 
   if (steps < 1 || steps > 30000) {
     sendError(id, "invalid_move_steps");
@@ -523,6 +528,10 @@ void handleRamps14MoveAxis(const String &id, const String &line) {
     sendError(id, "invalid_step_backend");
     return;
   }
+  if (motionProfile != "trapezoid" && motionProfile != "s_curve") {
+    sendError(id, "invalid_motion_profile");
+    return;
+  }
 
   Ramps14AxisPins pins;
   if (!resolveRamps14AxisPins(axis, pins)) {
@@ -531,8 +540,8 @@ void handleRamps14MoveAxis(const String &id, const String &line) {
   }
 
   bool limitHit = false;
-  long moved = runRamps14Steps(pins, stepBackend == "digital", direction, steps, pulseUs, startDelayUs, minDelayUs, accelSteps, decelSteps, hold == 1, "", false, limitHit);
-  sendOk(id, "\"moved\":true,\"axis\":\"" + axis + "\",\"steps\":" + String(moved) + ",\"direction\":" + String(direction == 0 ? 0 : 1) + ",\"motion_profile\":\"trapezoid\",\"step_backend\":\"" + stepBackend + "\",\"min_delay_us\":" + String(minDelayUs) + ",\"start_delay_us\":" + String(startDelayUs) + ",\"accel_steps\":" + String(accelSteps) + ",\"decel_steps\":" + String(decelSteps) + ",\"hold\":" + boolJson(hold == 1));
+  long moved = runRamps14Steps(pins, stepBackend == "digital", direction, steps, pulseUs, startDelayUs, minDelayUs, accelSteps, decelSteps, motionProfile == "s_curve", hold == 1, "", false, limitHit);
+  sendOk(id, "\"moved\":true,\"axis\":\"" + axis + "\",\"steps\":" + String(moved) + ",\"direction\":" + String(direction == 0 ? 0 : 1) + ",\"motion_profile\":\"" + motionProfile + "\",\"step_backend\":\"" + stepBackend + "\",\"min_delay_us\":" + String(minDelayUs) + ",\"start_delay_us\":" + String(startDelayUs) + ",\"accel_steps\":" + String(accelSteps) + ",\"decel_steps\":" + String(decelSteps) + ",\"hold\":" + boolJson(hold == 1));
 #else
   (void)line;
   sendError(id, "ramps14_commissioning_disabled");
@@ -564,6 +573,10 @@ void handleRamps14SeekLimit(const String &id, const String &line) {
   if (stepBackend.length() == 0) {
     stepBackend = defaultDigitalStepBackendForAxis(axis) ? "digital" : "direct";
   }
+  String motionProfile = extractJsonString(line, "motion_profile");
+  if (motionProfile.length() == 0) {
+    motionProfile = "trapezoid";
+  }
 
   if (maxSteps < 1 || maxSteps > 40000) {
     sendError(id, "invalid_seek_steps");
@@ -581,6 +594,10 @@ void handleRamps14SeekLimit(const String &id, const String &line) {
     sendError(id, "invalid_step_backend");
     return;
   }
+  if (motionProfile != "trapezoid" && motionProfile != "s_curve") {
+    sendError(id, "invalid_motion_profile");
+    return;
+  }
 
   Ramps14AxisPins pins;
   if (!resolveRamps14AxisPins(axis, pins)) {
@@ -589,8 +606,8 @@ void handleRamps14SeekLimit(const String &id, const String &line) {
   }
 
   bool limitHit = false;
-  long moved = runRamps14Steps(pins, stepBackend == "digital", direction, maxSteps, pulseUs, startDelayUs, minDelayUs, accelSteps, decelSteps, false, limitId, true, limitHit);
-  sendOk(id, "\"limit_hit\":" + boolJson(limitHit) + ",\"axis\":\"" + axis + "\",\"limit\":\"" + limitId + "\",\"steps\":" + String(moved) + ",\"direction\":" + String(direction == 0 ? 0 : 1) + ",\"motion_profile\":\"trapezoid\",\"step_backend\":\"" + stepBackend + "\",\"min_delay_us\":" + String(minDelayUs) + ",\"start_delay_us\":" + String(startDelayUs) + ",\"accel_steps\":" + String(accelSteps) + ",\"decel_steps\":" + String(decelSteps));
+  long moved = runRamps14Steps(pins, stepBackend == "digital", direction, maxSteps, pulseUs, startDelayUs, minDelayUs, accelSteps, decelSteps, motionProfile == "s_curve", false, limitId, true, limitHit);
+  sendOk(id, "\"limit_hit\":" + boolJson(limitHit) + ",\"axis\":\"" + axis + "\",\"limit\":\"" + limitId + "\",\"steps\":" + String(moved) + ",\"direction\":" + String(direction == 0 ? 0 : 1) + ",\"motion_profile\":\"" + motionProfile + "\",\"step_backend\":\"" + stepBackend + "\",\"min_delay_us\":" + String(minDelayUs) + ",\"start_delay_us\":" + String(startDelayUs) + ",\"accel_steps\":" + String(accelSteps) + ",\"decel_steps\":" + String(decelSteps));
 #else
   (void)line;
   sendError(id, "ramps14_commissioning_disabled");
@@ -815,11 +832,27 @@ bool readRamps14LimitActive(const String &limitId) {
   return digitalRead((uint8_t)pin) == LOW;
 }
 
-unsigned long profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps) {
+unsigned long profileProgressQ10(long numerator, long denominator, bool useSCurve) {
+  if (denominator <= 0) {
+    return 1024UL;
+  }
+  unsigned long progress = ((unsigned long)numerator * 1024UL) / (unsigned long)denominator;
+  if (progress > 1024UL) {
+    progress = 1024UL;
+  }
+  if (!useSCurve) {
+    return progress;
+  }
+  unsigned long squared = (progress * progress) / 1024UL;
+  return (squared * (3072UL - (2UL * progress))) / 1024UL;
+}
+
+unsigned long profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool useSCurve) {
   long delayUs = minDelayUs;
   if (accelSteps > 0 && stepIndex < accelSteps) {
     long delta = startDelayUs - minDelayUs;
-    long accelDelay = startDelayUs - ((delta * stepIndex) / accelSteps);
+    unsigned long progress = profileProgressQ10(stepIndex, accelSteps, useSCurve);
+    long accelDelay = startDelayUs - ((delta * (long)progress) / 1024L);
     if (accelDelay > delayUs) {
       delayUs = accelDelay;
     }
@@ -829,7 +862,8 @@ unsigned long profiledDelayUs(long stepIndex, long totalSteps, long startDelayUs
   if (decelSteps > 0 && stepsRemaining < decelSteps) {
     long delta = startDelayUs - minDelayUs;
     long decelIndex = decelSteps - stepsRemaining;
-    long decelDelay = minDelayUs + ((delta * decelIndex) / decelSteps);
+    unsigned long progress = profileProgressQ10(decelIndex, decelSteps, useSCurve);
+    long decelDelay = minDelayUs + ((delta * (long)progress) / 1024L);
     if (decelDelay > delayUs) {
       delayUs = decelDelay;
     }
@@ -855,7 +889,7 @@ bool defaultDigitalStepBackendForAxis(const String &axis) {
   return axis == "SLIDER" || axis == "E0";
 }
 
-long runRamps14Steps(const Ramps14AxisPins &pins, bool digitalStepBackend, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool holdEnabled, const String &targetLimit, bool stopOnLimit, bool &limitHit) {
+long runRamps14Steps(const Ramps14AxisPins &pins, bool digitalStepBackend, long direction, long maxSteps, long pulseUs, long startDelayUs, long minDelayUs, long accelSteps, long decelSteps, bool useSCurve, bool holdEnabled, const String &targetLimit, bool stopOnLimit, bool &limitHit) {
   limitHit = false;
   pinMode(pins.stepPin, OUTPUT);
   pinMode(pins.dirPin, OUTPUT);
@@ -887,7 +921,7 @@ long runRamps14Steps(const Ramps14AxisPins &pins, bool digitalStepBackend, long 
       *stepPort &= (uint8_t)~stepMask;
     }
     moved++;
-    slowDelayMicroseconds(profiledDelayUs(index, maxSteps, startDelayUs, minDelayUs, accelSteps, decelSteps));
+    slowDelayMicroseconds(profiledDelayUs(index, maxSteps, startDelayUs, minDelayUs, accelSteps, decelSteps, useSCurve));
     if (stopOnLimit && readRamps14LimitActive(targetLimit)) {
       limitHit = true;
       break;
@@ -931,7 +965,7 @@ void sendState(const String &id) {
 
 String capabilitiesJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  return "{\"protocol_version\":1,\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.3.0\",\"hardware_configured\":" + configured + ",\"motion_commands_enabled\":false,\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"supported_transports\":[\"usb_serial\",\"bluetooth_rfcomm\"],\"supported_commands\":[\"hello\",\"ping\",\"get_state\",\"get_capabilities\",\"get_hardware_config\",\"get_limit_switches\",\"self_test\",\"get_firmware_status\",\"get_motion_profile\",\"read_inputs\",\"bench_unlock\",\"bench_test_output\",\"jog_axis\",\"move_axis\",\"seek_limit\",\"set_output\",\"set_axis_enabled\",\"get_faults\",\"inject_fault\",\"clear_faults\",\"enable_motion\",\"home_all\",\"set_joint\",\"set_gripper\",\"estop\",\"clear_estop\"]}";
+  return "{\"protocol_version\":1,\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.4.0\",\"hardware_configured\":" + configured + ",\"motion_commands_enabled\":false,\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"supported_transports\":[\"usb_serial\",\"bluetooth_rfcomm\"],\"supported_commands\":[\"hello\",\"ping\",\"get_state\",\"get_capabilities\",\"get_hardware_config\",\"get_limit_switches\",\"self_test\",\"get_firmware_status\",\"get_motion_profile\",\"read_inputs\",\"bench_unlock\",\"bench_test_output\",\"jog_axis\",\"move_axis\",\"seek_limit\",\"set_output\",\"set_axis_enabled\",\"get_faults\",\"inject_fault\",\"clear_faults\",\"enable_motion\",\"home_all\",\"set_joint\",\"set_gripper\",\"estop\",\"clear_estop\"]}";
 }
 
 String hardwareConfigJson() {
@@ -954,7 +988,7 @@ String selfTestJson() {
 
 String firmwareStatusJson() {
   String configured = COOKBOT_HARDWARE_CONFIGURED ? "true" : "false";
-  String data = "{\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.3.0\",\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"bench_unlocked\":" + boolJson(benchUnlocked) + ",\"estop\":" + boolJson(estopActive) + ",\"motion_enabled\":" + boolJson(motionEnabled) + ",\"microstep_config_verified\":" + boolJson(COOKBOT_MICROSTEP_CONFIG_VERIFIED) + ",\"coordinate_calibration_verified\":" + boolJson(COOKBOT_COORDINATE_CALIBRATION_VERIFIED) + ",\"watchdog_timeout_ms\":" + String(WATCHDOG_TIMEOUT_MS);
+  String data = "{\"firmware\":\"cookbot_mega_firmware\",\"version\":\"0.4.0\",\"hardware_configured\":" + configured + ",\"bench_outputs_enabled\":" + benchOutputsEnabledJson() + ",\"ramps14_commissioning\":" + ramps14CommissioningJson() + ",\"bluetooth_uart_enabled\":" + bluetoothUartEnabledJson() + ",\"bench_unlocked\":" + boolJson(benchUnlocked) + ",\"estop\":" + boolJson(estopActive) + ",\"motion_enabled\":" + boolJson(motionEnabled) + ",\"microstep_config_verified\":" + boolJson(COOKBOT_MICROSTEP_CONFIG_VERIFIED) + ",\"coordinate_calibration_verified\":" + boolJson(COOKBOT_COORDINATE_CALIBRATION_VERIFIED) + ",\"watchdog_timeout_ms\":" + String(WATCHDOG_TIMEOUT_MS);
 #if COOKBOT_BLUETOOTH_UART_ENABLED
   data += ",\"bluetooth_uart_port\":" + String(COOKBOT_BLUETOOTH_UART_PORT) + ",\"bluetooth_baud\":" + String(COOKBOT_BLUETOOTH_BAUD) + ",\"bluetooth_rx_pin\":" + String(COOKBOT_BLUETOOTH_RX_PIN) + ",\"bluetooth_tx_pin\":" + String(COOKBOT_BLUETOOTH_TX_PIN);
 #endif
@@ -966,7 +1000,7 @@ String firmwareStatusJson() {
 }
 
 String motionProfileJson() {
-  String data = "{\"coordinate_mode_supported\":false,\"vendor_gcode_supported\":false,\"microstep_config_verified\":" + boolJson(COOKBOT_MICROSTEP_CONFIG_VERIFIED) + ",\"coordinate_calibration_verified\":" + boolJson(COOKBOT_COORDINATE_CALIBRATION_VERIFIED) + ",\"profiles\":[";
+  String data = "{\"coordinate_mode_supported\":false,\"vendor_gcode_supported\":false,\"microstep_config_verified\":" + boolJson(COOKBOT_MICROSTEP_CONFIG_VERIFIED) + ",\"coordinate_calibration_verified\":" + boolJson(COOKBOT_COORDINATE_CALIBRATION_VERIFIED) + ",\"default_ramp_profile\":\"trapezoid\",\"supported_ramp_profiles\":[\"trapezoid\",\"s_curve\"],\"profiles\":[";
 #if COOKBOT_RAMPS14_COMMISSIONING
   data += "{\"axis\":\"A\",\"pulse_us\":3,\"start_delay_us\":5000,\"min_delay_us\":3500,\"nominal_max_step_hz\":285.47},";
   data += "{\"axis\":\"B\",\"pulse_us\":4,\"start_delay_us\":8000,\"min_delay_us\":8000,\"nominal_max_step_hz\":124.94},";

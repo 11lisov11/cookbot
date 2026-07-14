@@ -38,14 +38,18 @@ Response:
 - Request fields are top-level JSON fields for the commissioning sketch: `axis`, `steps`, `direction`, `pulse_us`, and `step_delay_us`.
 - Supported axes are `A`, `B`, `C`, `SLIDER`, and aliases `X`, `Y`, `Z`, `E0`, `E1`. `SLIDER` maps to RAMPS `E0` on the connected controller.
 - `steps` is capped at 25 per command. Drivers are disabled immediately after each jog pulse.
-- `move_axis`: bounded long move inside Mega with trapezoid profiling. Fields: `axis`, `direction`, `steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`, optional `step_backend`.
-- `seek_limit`: bounded limit seek inside Mega with acceleration and per-step limit checks. Fields: `axis`, `limit`, `direction`, `max_steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`, optional `step_backend`.
+- `move_axis`: bounded long move inside Mega. Fields: `axis`, `direction`, `steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`, optional `step_backend`, and optional `motion_profile` (`trapezoid` or `s_curve`).
+- `seek_limit`: bounded limit seek inside Mega with acceleration and per-step limit checks. Fields: `axis`, `limit`, `direction`, `max_steps`, `pulse_us`, `start_delay_us`, `min_delay_us`, `accel_steps`, `decel_steps`, optional `step_backend`, and optional `motion_profile` (`trapezoid` or `s_curve`).
 - `step_backend` is `direct` or `digital`. `direct` uses direct AVR port writes for speed. `digital` uses Arduino `digitalWrite`, matching the original `jog_axis` pulse path. `SLIDER`/`E0` defaults to `digital`; other axes default to `direct`.
 - `move_axis` and `seek_limit` accept `min_delay_us` up to `200000` and `start_delay_us` up to `250000` for worm-gear/low-torque bring-up. Long slow moves may take minutes; the PC tooling sizes its serial timeout from the requested step count and delay.
 - Omitted raw timing fields use conservative commissioned defaults: A move `5000us -> 3500us`, A seek `4000us`, B/C move and seek `8000us` flat, and E0 move `12000us` flat. Explicit fields are still validated and bounded.
 - `get_motion_profile` reports those defaults as approximately `285.47 STEP/s`
   for A, `124.94 STEP/s` for B/C, and `83.28 STEP/s` for E. These are raw
   pulse rates, not Cartesian millimeters per second.
+- `trapezoid` remains the backward-compatible default. `s_curve` uses cubic
+  smoothstep interpolation of STEP period with zero ramp-end slope. It does
+  not raise the requested peak rate and is not a Cartesian jerk planner.
+- Unknown motion profiles are rejected with `invalid_motion_profile`.
 - `set_axis_enabled`: enables or disables one RAMPS stepper driver. Fields: `axis`, `enabled` (`0` or `1`). ESTOP clears all driver enables.
 - `jog_axis`, `move_axis`, and `seek_limit` automatically turn RAMPS `D9` on for driver cooling before movement and refresh a post-motion cooldown timer after the last step. The default cooldown is `COOKBOT_RAMPS14_MOTION_FAN_COOLDOWN_MS=120000` ms.
 - `move_axis` and `seek_limit` disable the driver at command completion unless hold is requested.

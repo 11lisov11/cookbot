@@ -21,7 +21,7 @@ def test_release_versions_are_synchronized():
     package = yaml.safe_load((ROOT / "config/vendor_controller_profile.yaml").read_text())
     web_package = yaml.safe_load((ROOT / "web/package.json").read_text())
 
-    assert __version__ == "0.3.0"
+    assert __version__ == "0.4.0"
     assert web_package["version"] == __version__
     assert package["project"] == "CookBot"
 
@@ -37,10 +37,23 @@ def test_vendor_profile_records_evidenced_protocol_without_enabling_gcode():
     assert profile["transport"]["android_bluetooth_profile"] == "bluetooth_classic_spp_rfcomm"
     assert profile["transport"]["android_spp_uuid"] == "00001101-0000-1000-8000-00805f9b34fb"
     assert profile["motion"]["coordinate_axes"] == ["X", "Y", "Z", "E"]
+    assert profile["host_behavior"]["global_speed_percentage_control_observed"] is False
     assert profile["safety"]["direct_vendor_gcode_enabled"] is False
     assert commissioning["controller_transport"]["bluetooth_uart"] == "Serial2"
     assert commissioning["axes"]["E0"]["limit_pin"] is None
     assert commissioning["axes"]["B"]["status"].startswith("inconsistent")
+
+
+def test_raw_motion_profiles_are_explicit_and_hardware_locked():
+    calibration = yaml.safe_load(
+        (ROOT / "config/motion_calibration.yaml").read_text(encoding="utf-8")
+    )
+
+    raw_motion = calibration["raw_commissioning_motion"]
+    assert raw_motion["default_profile"] == "trapezoid"
+    assert raw_motion["supported_profiles"] == ["trapezoid", "s_curve"]
+    assert raw_motion["maximum_rate_verified"] is False
+    assert calibration["real_motion_gate"]["unlocked"] is False
 
 
 def test_home_assistant_package_is_restricted_to_state_and_estop():

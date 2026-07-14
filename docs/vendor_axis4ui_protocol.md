@@ -57,6 +57,11 @@ The UI labels `F` as mm/s and constrains both jog and program speeds to
 `5..150`, default `100`. The precise increment defaults to `1`; the quick
 increment defaults to `10`.
 
+No separate global speed-percentage setting was recovered from either host
+application. A claimed default such as 30% or 50% therefore cannot be changed
+in the supplied AXIS4UI/RA Pendant software without evidence from the missing
+controller firmware or service configuration.
+
 Observed reference positions:
 
 | UI action | Command |

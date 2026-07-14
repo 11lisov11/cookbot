@@ -22,7 +22,7 @@ class FakeMegaDevice:
             return {
                 "name": "CookBot Fake Mega",
                 "firmware": "cookbot-fake-mega",
-                "version": "0.3.0",
+                "version": "0.4.0",
                 "protocol_version": 1,
                 "hardware_configured": False,
                 "capabilities": self.simulator.capabilities(),

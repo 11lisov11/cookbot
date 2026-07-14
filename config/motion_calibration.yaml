@@ -12,6 +12,11 @@ vendor_coordinate_layer:
   feed_range_mm_s: [5, 150]
   default_feed_mm_s: 100
   controller_conversion_available: false
+raw_commissioning_motion:
+  default_profile: trapezoid
+  supported_profiles: [trapezoid, s_curve]
+  s_curve_scope: fixed_point_step_period_smoothstep_not_cartesian_jerk_planner
+  maximum_rate_verified: false
 axes:
   A:
     ramps_channel: Y

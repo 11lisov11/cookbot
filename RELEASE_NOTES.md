@@ -1,5 +1,17 @@
 # Release Notes
 
+## v0.4.0 Controlled Speed Profiles
+
+- Added selectable `trapezoid` and fixed-point `s_curve` profiles to bounded
+  Mega commissioning moves while preserving the verified default behavior.
+- Added offline ramp preview with duration, STEP-rate range, and sampled delays.
+- Rejected unknown profiles in firmware and exposed supported profiles through
+  `get_motion_profile`.
+- Documented why generic TB6600 DIP-switch, global speed percentage, and
+  unverified 24/36 V supply advice does not directly apply to RAMPS/A4988.
+- Kept peak frequencies, coordinate motion, synchronized multi-axis motion,
+  and real-motion readiness locked pending physical calibration.
+
 ## v0.3.0 Vendor Coordinate Analysis
 
 - Recovered the AXIS4UI Python 3.9 command handlers and Qt defaults from the

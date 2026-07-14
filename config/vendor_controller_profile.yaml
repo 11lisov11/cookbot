@@ -19,6 +19,7 @@ transport:
   response_shape: vendor_text_coordinates
   checksum_or_authentication: none_observed
 host_behavior:
+  global_speed_percentage_control_observed: false
   desktop_jog_includes_feed: true
   android_jog_includes_feed: false
   android_uses_controller_default_or_persistent_feed: true

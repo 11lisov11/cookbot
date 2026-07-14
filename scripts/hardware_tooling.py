@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from unoq_backend.motion_math import MOTION_PROFILES, profiled_step_delay_us
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="cookbot-hardware-tooling")
@@ -92,6 +94,17 @@ def main() -> int:
     motion_calc.add_argument("--json", action="store_true")
     motion_calc.set_defaults(fn=cmd_mega_motion_calc)
 
+    ramp_preview = subcommands.add_parser("mega-ramp-preview")
+    ramp_preview.add_argument("--steps", type=int, required=True)
+    ramp_preview.add_argument("--pulse-us", type=int, default=3)
+    ramp_preview.add_argument("--start-delay-us", type=int, required=True)
+    ramp_preview.add_argument("--min-delay-us", type=int, required=True)
+    ramp_preview.add_argument("--accel-steps", type=int, required=True)
+    ramp_preview.add_argument("--decel-steps", type=int, required=True)
+    ramp_preview.add_argument("--motion-profile", choices=MOTION_PROFILES, default="trapezoid")
+    ramp_preview.add_argument("--json", action="store_true")
+    ramp_preview.set_defaults(fn=cmd_mega_ramp_preview)
+
     a4988_calc = subcommands.add_parser("a4988-current-calc")
     a4988_calc.add_argument("--rsense-ohm", type=float, required=True)
     a4988_target = a4988_calc.add_mutually_exclusive_group(required=True)
@@ -157,6 +170,7 @@ def main() -> int:
     ramps14_sweep.add_argument("--slider-decel-steps", type=int, default=0)
     ramps14_sweep.add_argument("--pulse-us", type=int, default=8)
     ramps14_sweep.add_argument("--slider-pulse-us", type=int, default=12)
+    ramps14_sweep.add_argument("--motion-profile", choices=MOTION_PROFILES, default="trapezoid")
     ramps14_sweep.add_argument("--fan-observe-seconds", type=int, default=0)
     ramps14_sweep.add_argument("--dry-run", action="store_true")
     ramps14_sweep.set_defaults(fn=cmd_mega_ramps14_axis_sweep)
@@ -177,6 +191,7 @@ def main() -> int:
     ramps14_edge_scan.add_argument("--away-decel-steps", type=int, default=0)
     ramps14_edge_scan.add_argument("--pulse-us", type=int, default=8)
     ramps14_edge_scan.add_argument("--step-backend", choices=["direct", "digital"], default="direct")
+    ramps14_edge_scan.add_argument("--motion-profile", choices=MOTION_PROFILES, default="trapezoid")
     ramps14_edge_scan.add_argument("--dry-run", action="store_true")
     ramps14_edge_scan.set_defaults(fn=cmd_mega_ramps14_edge_scan)
 
@@ -207,6 +222,7 @@ def _add_ramps14_motion_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--accel-steps", type=int)
     parser.add_argument("--decel-steps", type=int)
     parser.add_argument("--step-backend", choices=["direct", "digital"])
+    parser.add_argument("--motion-profile", choices=MOTION_PROFILES, default="trapezoid")
     parser.add_argument("--dry-run", action="store_true")
 
 
@@ -580,6 +596,72 @@ def cmd_mega_motion_calc(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_mega_ramp_preview(args: argparse.Namespace) -> int:
+    if args.steps < 1 or args.steps > 100000:
+        return _fail("invalid_preview_steps", args.json, {}, 2)
+    if args.pulse_us < 2 or args.pulse_us > 20:
+        return _fail("invalid_preview_pulse", args.json, {}, 2)
+    if args.min_delay_us < 250 or args.start_delay_us < args.min_delay_us or args.start_delay_us > 250000:
+        return _fail("invalid_preview_timing", args.json, {}, 2)
+    if args.accel_steps < 0 or args.decel_steps < 0:
+        return _fail("invalid_preview_ramp", args.json, {}, 2)
+
+    delays = [
+        profiled_step_delay_us(
+            index,
+            args.steps,
+            args.start_delay_us,
+            args.min_delay_us,
+            args.accel_steps,
+            args.decel_steps,
+            args.motion_profile,
+        )
+        for index in range(args.steps)
+    ]
+    sample_indices = sorted(
+        {
+            0,
+            min(args.steps - 1, 1),
+            args.steps // 4,
+            args.steps // 2,
+            (args.steps * 3) // 4,
+            args.steps - 1,
+        }
+    )
+    result = {
+        "motion_profile": args.motion_profile,
+        "steps": args.steps,
+        "pulse_us": args.pulse_us,
+        "start_delay_us": args.start_delay_us,
+        "min_delay_us": args.min_delay_us,
+        "accel_steps": args.accel_steps,
+        "decel_steps": args.decel_steps,
+        "estimated_duration_s": sum(delay + args.pulse_us for delay in delays) / 1_000_000.0,
+        "minimum_step_rate_hz": 1_000_000.0 / (max(delays) + args.pulse_us),
+        "maximum_step_rate_hz": 1_000_000.0 / (min(delays) + args.pulse_us),
+        "samples": [
+            {
+                "step_index": index,
+                "delay_us": delays[index],
+                "step_rate_hz": 1_000_000.0 / (delays[index] + args.pulse_us),
+            }
+            for index in sample_indices
+        ],
+    }
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"motion_profile={args.motion_profile}")
+        print(f"estimated_duration_s={result['estimated_duration_s']:.4f}")
+        print(f"step_rate_hz={result['minimum_step_rate_hz']:.2f}..{result['maximum_step_rate_hz']:.2f}")
+        for sample in result["samples"]:
+            print(
+                f"step={sample['step_index']} delay_us={sample['delay_us']} "
+                f"step_rate_hz={sample['step_rate_hz']:.2f}"
+            )
+    return 0
+
+
 def cmd_a4988_current_calc(args: argparse.Namespace) -> int:
     if args.rsense_ohm <= 0:
         return _fail("invalid_rsense", args.json, {}, 2)
@@ -792,6 +874,7 @@ def cmd_mega_ramps14_axis_sweep(args: argparse.Namespace) -> int:
                 "min_delay_us": delay_us,
                 "accel_steps": accel_steps,
                 "decel_steps": decel_steps,
+                "motion_profile": args.motion_profile,
                 "step_backend": "digital" if is_slider else "direct",
             }
             for direction in (1, 0):
@@ -863,6 +946,7 @@ def cmd_mega_ramps14_edge_scan(args: argparse.Namespace) -> int:
         "min_delay_us": args.home_delay_us,
         "accel_steps": 0,
         "decel_steps": 0,
+        "motion_profile": args.motion_profile,
         "step_backend": args.step_backend,
     }
     session_handle = None
@@ -933,6 +1017,7 @@ def _run_ramps14_edge_scan(
             "min_delay_us": args.away_delay_us,
             "accel_steps": args.away_accel_steps,
             "decel_steps": args.away_decel_steps,
+            "motion_profile": args.motion_profile,
             "hold": 1,
             "step_backend": args.step_backend,
         }
@@ -1043,7 +1128,7 @@ def _observe_motion_fan_cooldown(transport_args: argparse.Namespace, observe_sec
     return 0
 
 
-def _resolve_ramps14_timing(args: argparse.Namespace, purpose: str) -> dict[str, int]:
+def _resolve_ramps14_timing(args: argparse.Namespace, purpose: str) -> dict[str, int | str]:
     if purpose == "seek":
         seek_delay_us = 4000 if args.axis == "A" else 8000
         defaults = {
@@ -1092,6 +1177,7 @@ def _resolve_ramps14_timing(args: argparse.Namespace, purpose: str) -> dict[str,
         "min_delay_us": args.min_delay_us if args.min_delay_us is not None else defaults["min_delay_us"],
         "accel_steps": args.accel_steps if args.accel_steps is not None else defaults["accel_steps"],
         "decel_steps": args.decel_steps if args.decel_steps is not None else defaults["decel_steps"],
+        "motion_profile": args.motion_profile,
     }
 
 

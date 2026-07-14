@@ -150,7 +150,7 @@ class CookBotSimulator:
         return {
             "protocol_version": 1,
             "firmware": "cookbot-fake-mega",
-            "version": "0.3.0",
+            "version": "0.4.0",
             "hardware_configured": False,
             "motion_commands_enabled": True,
             "bench_outputs_enabled": False,
@@ -211,7 +211,7 @@ class CookBotSimulator:
     def firmware_status(self) -> dict[str, Any]:
         return {
             "firmware": "cookbot-fake-mega",
-            "version": "0.3.0",
+            "version": "0.4.0",
             "hardware_configured": False,
             "bench_outputs_enabled": False,
             "bench_unlocked": self._bench_unlocked,
@@ -226,6 +226,8 @@ class CookBotSimulator:
             "vendor_gcode_supported": False,
             "microstep_config_verified": False,
             "coordinate_calibration_verified": False,
+            "default_ramp_profile": "trapezoid",
+            "supported_ramp_profiles": ["trapezoid", "s_curve"],
             "profiles": [],
         }
 

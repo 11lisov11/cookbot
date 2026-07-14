@@ -10,7 +10,11 @@ from unoq_backend.models import (
     CoordinateCalibrationRequest,
     StepperMotionEstimateRequest,
 )
-from unoq_backend.motion_math import calibrate_steps_per_unit, estimate_stepper_motion
+from unoq_backend.motion_math import (
+    calibrate_steps_per_unit,
+    estimate_stepper_motion,
+    profiled_step_delay_us,
+)
 from unoq_backend.vendor_gcode import VendorControllerEmulator, parse_vendor_gcode
 from scripts.vendor_axis4ui_emulator import handle_tcp_client
 
@@ -86,6 +90,22 @@ def test_coordinate_calibration_computes_steps_per_unit_without_unlocking_motion
     assert result.steps_per_unit == 160
     assert result.units_per_step == 0.00625
     assert result.verified_for_real_motion is False
+
+
+def test_s_curve_profile_softens_the_first_acceleration_increment():
+    trapezoid = [
+        profiled_step_delay_us(index, 1000, 5000, 1000, 300, 300, "trapezoid")
+        for index in range(3)
+    ]
+    s_curve = [
+        profiled_step_delay_us(index, 1000, 5000, 1000, 300, 300, "s_curve")
+        for index in range(3)
+    ]
+    assert trapezoid[0] == s_curve[0] == 5000
+    assert s_curve[0] - s_curve[1] < trapezoid[0] - trapezoid[1]
+    assert profiled_step_delay_us(999, 1000, 5000, 1000, 300, 300, "s_curve") == 5000
+    with pytest.raises(ValueError, match="invalid_motion_profile"):
+        profiled_step_delay_us(0, 100, 5000, 1000, 10, 10, "unsafe")
 
 
 def test_vendor_profile_validation_and_motion_api(client):
